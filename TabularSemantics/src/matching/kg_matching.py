@@ -35,7 +35,9 @@ class Lookup(object):
         #self.KGraph = KGraph
         
         self.dbpedia_onto = DBpediaOntology()
+        self.dbpedia_onto.loadOntology(True)
         self.schema_onto = SchemaOrgOntology()
+        self.schema_onto.loadOntology(True)
         
         self.dbpedia_ep = DBpediaEndpoint()
         
@@ -98,10 +100,10 @@ class Lookup(object):
         
         print("\t"+str(entity.getTypes(KG.DBpedia)))
         
-        
+        #Filter by type?
         types_endpoint = self.dbpedia_ep.getAllTypesForEntity(entity.getId())
         
-        #print("\t"+str(types))
+        #print("\t"+str(types_endpoint))
         
         if len(entity.getTypes())>0:
             
@@ -125,10 +127,10 @@ class Lookup(object):
     '''
     We check if the source type (endpoint) is among descendants or ancestors of at least one of the target types (lookup)
     '''
-    def __checkCompatibilityTypes(self, cls_source, target_types):
+    def __checkCompatibilityTypes(self, cls_source_uri, target_types):
         
-        for cls_target in target_types:
-            if self.__isCompatibleType(cls_source, cls_target):
+        for cls_target_uri in target_types:
+            if self.__isCompatibleType(cls_source_uri, cls_target_uri):
                 return True
             
         
@@ -137,7 +139,22 @@ class Lookup(object):
     '''
     We check if the source type is among descendants or ancestors of the target type
     '''
-    def __isCompatibleType(self, cls_source, cls_target):
+    def __isCompatibleType(self, cls_source_uri, cls_target_uri):
+        
+        
+        cls_source = self.dbpedia_onto.getClassByURI(cls_source_uri)
+        cls_target = self.dbpedia_onto.getClassByURI(cls_target_uri)
+        
+        ##TODO  We rely on DBpedia only for now
+        if cls_source==None or cls_target==None:
+            return False
+        
+        ancestors = self.dbpedia_onto.getAncestorsURIs(cls_target)
+        descendants = self.dbpedia_onto.getDescendantURIs(cls_target)
+        
+        if cls_source_uri in ancestors or cls_source_uri in descendants:
+            return True
+        
         return False
          
          

@@ -3,6 +3,30 @@ Created on 20 Mar 2019
 
 @author: ejimenez-ruiz
 '''
+from enum import Enum
+
+
+class KG(Enum):
+        DBpedia = 0
+        Wikidata = 1
+        Google = 2        
+        All = 3
+
+class URI_KG(object):
+    
+    dbpedia_uri = 'http://dbpedia.org/ontology/'
+    wikidata_uri ='http://www.wikidata.org/entity/'
+    schema_uri = 'http://schema.org/' 
+    
+    uris = list()
+    uris.append(dbpedia_uri)
+    uris.append(wikidata_uri)
+    uris.append(schema_uri)
+    
+    def __init__(self):
+        ''''
+        '''
+
 
 
 class KGEntity(object):
@@ -27,8 +51,20 @@ class KGEntity(object):
     def getId(self):
         return self.ident
     
-    def getTypes(self):
-        return self.types
+    '''
+    One can retrieve all types or filter by KG: DBpedia, Wikidata and Google (Schema.org)
+    '''
+    def getTypes(self, kgfilter=KG.All):
+        if kgfilter==KG.All:
+            return self.types
+        else:
+            kg_uri = URI_KG.uris[kgfilter.value]
+            filtered_types = set()
+            for t in self.types:
+                if t.startswith(kg_uri):
+                    filtered_types.add(t)
+            
+            return filtered_types 
     
     def getLabel(self):
         return self.label
@@ -39,4 +75,17 @@ class KGEntity(object):
     def getSource(self):
         return self.sourcec
     
+    
+    def addType(self, cls):
+        self.types.add(cls)
+    
+    def addTypes(self, types):
+        self.types.update(types)
+        
+        
+        
+if __name__ == '__main__':
+    print(URI_KG.uris[KG.DBpedia.value])
+    print(KG.DBpedia.value)
+          
     

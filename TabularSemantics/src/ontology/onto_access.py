@@ -125,27 +125,28 @@ class SchemaOrgOntology(OntologyAccess):
         
     
 
+if __name__ == '__main__':
 
-#folder_ontos="/home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/"
-uri_onto="http://www.cs.ox.ac.uk/isg/ontologies/dbpedia.owl"
-uri_onto="http://www.cs.ox.ac.uk/isg/ontologies/schema.org.owl"
-#uri_onto="file:///home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/dbpedia.owl"
-#uri_onto="file:///home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/schema.org.owl"
-
-#onto_access = OntologyAccess(uri_onto)
-
-
-onto_access = DBpediaOntology()
-onto_access = SchemaOrgOntology()
-
-onto_access.loadOntology(True)
-
-
-
-print(onto_access.getClassByName("City"))
-print(onto_access.getClassByName("City").descendants())
-print(onto_access.getClassByName("City").ancestors())
-print(onto_access.getDescendantURIs(onto_access.getClassByName("City")))
-print(onto_access.getAncestorsURIs(onto_access.getClassByName("City")))
-
-
+    #folder_ontos="/home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/"
+    uri_onto="http://www.cs.ox.ac.uk/isg/ontologies/dbpedia.owl"
+    uri_onto="http://www.cs.ox.ac.uk/isg/ontologies/schema.org.owl"
+    #uri_onto="file:///home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/dbpedia.owl"
+    #uri_onto="file:///home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/schema.org.owl"
+    
+    #onto_access = OntologyAccess(uri_onto)
+    
+    
+    onto_access = DBpediaOntology()
+    onto_access = SchemaOrgOntology()
+    
+    onto_access.loadOntology(True)
+    
+    
+    
+    print(onto_access.getClassByName("City"))
+    print(onto_access.getClassByName("City").descendants())
+    print(onto_access.getClassByName("City").ancestors())
+    print(onto_access.getDescendantURIs(onto_access.getClassByName("City")))
+    print(onto_access.getAncestorsURIs(onto_access.getClassByName("City")))
+    
+    

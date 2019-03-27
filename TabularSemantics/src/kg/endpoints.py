@@ -4,6 +4,7 @@ Created on 19 Mar 2019
 @author: ejimenez-ruiz
 '''
 from SPARQLWrapper import SPARQLWrapper, JSON
+from kg.entity import URI_KG
 
 
 class SPARQLEndpoint(object):
@@ -53,7 +54,7 @@ class SPARQLEndpoint(object):
         for result in results["results"]["bindings"]:
             #print(result["uri"]["value"])
             uri_value = result["uri"]["value"]
-            if uri_value.startswith('http://dbpedia.org/ontology/') or uri_value.startswith('http://www.wikidata.org/entity/') or uri_value.startswith('http://schema.org/'): 
+            if uri_value.startswith(URI_KG.dbpedia_uri) or uri_value.startswith(URI_KG.wikidata_uri) or uri_value.startswith(URI_KG.schema_uri): 
                 result_set.add(uri_value)
         
         

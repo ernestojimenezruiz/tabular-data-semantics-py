@@ -4,7 +4,6 @@ Created on 21 Mar 2019
 @author: ejimenez-ruiz
 '''
 
-from enum import Enum
 from kg.entity import KGEntity
 from kg.lookup import DBpediaLookup
 from kg.lookup import WikidataAPI
@@ -13,16 +12,10 @@ from kg.lookup import GoogleKGLookup
 from kg.endpoints import DBpediaEndpoint
 from kg.endpoints import WikidataEndpoint
 
+from ontology.onto_access import DBpediaOntology
+from ontology.onto_access import SchemaOrgOntology
 
-class KG(Enum):
-
-        DBpedia = 1
-
-        Wikidata = 2
-
-        Google = 3
-        
-        All = 4
+from kg.entity import KG
 
 
 
@@ -34,12 +27,18 @@ class Lookup(object):
     classdocs
     '''
        
-    def __init__(self, KGraph=KG.DBpedia):
+    def __init__(self): #KGraph=KG.DBpedia
         '''
         Constructor
         '''
         #Return types from this knowledge graph
-        self.KGraph = KGraph
+        #self.KGraph = KGraph
+        
+        self.dbpedia_onto = DBpediaOntology()
+        self.schema_onto = SchemaOrgOntology()
+        
+        self.dbpedia_ep = DBpediaEndpoint()
+        
         
         
         
@@ -63,11 +62,12 @@ class Lookup(object):
 
 
         #Get KG entities from DBpedia, Wikidata and KG
-        #One coudl also return the most accurate 5 types combining the 3 KGs... (limit 20 of each of them and then retrieve top-k)
+        #One could also return the most accurate 5 types combining the 3 KGs... (limit 20 of each of them and then retrieve top-k)
         dbpedia = DBpediaLookup()
         json = dbpedia.getJSONRequest(dbpedia.createParams(query, limit))
         dbpedia_entities = dbpedia.extractKGEntities(json) 
         
+        #We complement with types from endpoint and check if they are correct/compatible
         for entity in dbpedia_entities:
             self.__analyseEntityTypes(entity)
         
@@ -96,23 +96,52 @@ class Lookup(object):
         
         print(entity.getId())
         
-        print("\t"+str(entity.getTypes()))
+        print("\t"+str(entity.getTypes(KG.DBpedia)))
         
-        ep = DBpediaEndpoint()
-        types = ep.getAllTypesForEntity(entity.getId())
+        
+        types_endpoint = self.dbpedia_ep.getAllTypesForEntity(entity.getId())
         
         #print("\t"+str(types))
         
         if len(entity.getTypes())>0:
-            for t in types:
+            
+            for t in types_endpoint:
+                
                 if t not in entity.getTypes():
-                    print('\t'+t) 
                     
                     ##Evaluate compatibility with lookup types.
                     ##In same brunch
+                    ##We use DBpedia for now
+                    if self.__checkCompatibilityTypes(t, entity.getTypes(KG.DBpedia)):
+                        entity.addType(t) 
+                    
+        else: #No types from lookup
+            entity.addTypes(types_endpoint)
         
         
-
+        print("\t"+str(entity.getTypes(KG.DBpedia)))
+    
+    
+    '''
+    We check if the source type (endpoint) is among descendants or ancestors of at least one of the target types (lookup)
+    '''
+    def __checkCompatibilityTypes(self, cls_source, target_types):
+        
+        for cls_target in target_types:
+            if self.__isCompatibleType(cls_source, cls_target):
+                return True
+            
+        
+        return False
+    
+    '''
+    We check if the source type is among descendants or ancestors of the target type
+    '''
+    def __isCompatibleType(self, cls_source, cls_target):
+        return False
+         
+         
+         
 
 if __name__ == '__main__':
     

@@ -1,0 +1,151 @@
+'''
+Created on 2 Jan 2019
+
+@author: ejimenez-ruiz
+'''
+from owlready2 import *
+
+class OntologyAccess(object):
+    '''
+    classdocs
+    '''
+
+
+    def __init__(self, urionto):
+        
+        self.urionto = urionto
+        
+        #List from owlready2
+        #onto_path.append(pathontos) #For local ontologies
+        
+    
+    
+    def loadOntology(self, classify):   
+        
+        self.onto = get_ontology(self.urionto)
+        self.onto.load()
+        
+        #self.classifiedOnto = get_ontology(self.urionto + '_classified')        
+        if classify:
+            with self.onto:
+                sync_reasoner()  #it does add inferences to ontology
+            
+        #report problem with unsat (Nothing not declared....)
+        #print(list(self.onto.inconsistent_classes()))
+        
+    
+    
+    def getOntology(self):
+        return self.onto
+    
+    
+    #Does not seem to be a better way (or working way) according to the documentation...
+    def getClassByURI(self, uri):
+        
+        for cls in list(self.getOntology().classes()):
+            if (cls.iri==uri):
+                return cls
+            
+        return None
+            
+    
+    def getClassByName(self, name):
+        
+        for cls in list(self.getOntology().classes()):
+            if (cls.name==name):
+                return cls
+            
+        return None
+    
+    
+    
+    def getAncestorsURIs(self,cls):
+        ancestors_str = set()
+        
+        for anc_cls in cls.ancestors():
+            ancestors_str.add(anc_cls.iri)
+        
+        return ancestors_str    
+    
+    
+    def getDescendantURIs(self,cls):
+        descendants_str = set()
+        
+        for desc_cls in cls.descendants():
+            descendants_str.add(desc_cls.iri)
+        
+        return descendants_str    
+        
+        
+    def getDescendantNames(self,cls):
+        descendants_str = set()
+        
+        for desc_cls in cls.descendants():
+            descendants_str.add(desc_cls.name)
+    
+        return descendants_str
+    
+    
+    
+    def getDescendantNamesForClassName(self, cls_name):
+        
+        cls = self.getClassByName(cls_name)
+        
+        descendants_str = set()
+        
+        for desc_cls in cls.descendants():
+            descendants_str.add(desc_cls.name)
+    
+        return descendants_str
+        
+
+class DBpediaOntology(OntologyAccess):
+    
+    def __init__(self):
+        '''
+        Constructor
+        '''
+        super().__init__(self.getOntologyIRI())
+        
+        
+    def getOntologyIRI(self):
+        return "http://www.cs.ox.ac.uk/isg/ontologies/dbpedia.owl"
+    
+class SchemaOrgOntology(OntologyAccess):
+    
+    def __init__(self):
+        '''
+        Constructor
+        '''
+        super().__init__(self.getOntologyIRI())
+        
+        
+    def getOntologyIRI(self):
+        return "http://www.cs.ox.ac.uk/isg/ontologies/schema.org.owl"
+        
+    
+
+
+#folder_ontos="/home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/"
+uri_onto="http://www.cs.ox.ac.uk/isg/ontologies/dbpedia.owl"
+uri_onto="http://www.cs.ox.ac.uk/isg/ontologies/schema.org.owl"
+#uri_onto="file:///home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/dbpedia.owl"
+#uri_onto="file:///home/ejimenez-ruiz/eclipse-python/TabularSemantics/ontologies/schema.org.owl"
+
+#onto_access = OntologyAccess(uri_onto)
+
+
+onto_access = DBpediaOntology()
+onto_access = SchemaOrgOntology()
+
+onto_access.loadOntology(True)
+
+
+
+print(onto_access.getClassByName("City"))
+print(onto_access.getClassByName("City").descendants())
+print(onto_access.getClassByName("City").ancestors())
+print(onto_access.getDescendantURIs(onto_access.getClassByName("City")))
+print(onto_access.getAncestorsURIs(onto_access.getClassByName("City")))
+
+

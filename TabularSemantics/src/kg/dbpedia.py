@@ -9,6 +9,10 @@ dbo_prefix = 'http://dbpedia.org/ontology/'
 
 
 
+##CODES FROM JIAOYAN. ONLY AS REFERENCE
+
+
+
 # lookup top-k entities from DBPedia of a cell
 def lookup_entities_with_sleep(cell_text, top_k):
     entities = list()

@@ -16,11 +16,16 @@ from ontology.onto_access import DBpediaOntology
 from ontology.onto_access import SchemaOrgOntology
 
 from kg.entity import KG
+from kg.entity import URI_KG
+
+from util.utilities import is_empty
+
 
 
 
 '''
 This class aim at providing a lookup access to the KG leading to minimal errors
+It will also optionally combine. No only one KG but several 
 '''
 class Lookup(object):
     '''
@@ -41,10 +46,42 @@ class Lookup(object):
         
         self.dbpedia_ep = DBpediaEndpoint()
         
+    
+    
+    def getTypesForEntity(self, uri_entity, kg=KG.DBpedia):
+        
+        if kg==KG.DBpedia:
+            
+            label=uri_entity
+            if uri_entity.startswith(URI_KG.dbpedia_uri_resource):
+                label=uri_entity.replace(URI_KG.dbpedia_uri_resource, '')
+            
+            ##we call our method to get look-up types for the URI. Only SPARQL endpoint types may contain errors
+            entities = self.getKGEntities(label, 10, uri_entity) 
+            
+            
+            ##In case not match in look up
+            if is_empty(entities):
+                #We retrieve from SPRQL endpoint
+                return self.dbpedia_ep.getAllTypesForEntity(uri_entity)
+                
+            else:
+                ##only one element
+                for entity in entities:
+                    return entity.getTypes(kg)
+            
+                
+        #TBC
+        elif kg==KG.Wikidata:
+            pass
+        elif kg==KG.Google:    
+            pass
+        
+        return set()
+    
         
         
-        
-    def getKGEntities(self, cell, limit=5):
+    def getKGEntities(self, cell, limit=5, filter=''):
         '''
         Given the text of a cell extracts entity objects.
         Note that an entity contains an id, a label, a description, a set of types from dbpedia, wikidata and schema.org,
@@ -62,43 +99,39 @@ class Lookup(object):
             
         query = cell
 
-
         #Get KG entities from DBpedia, Wikidata and KG
         #One could also return the most accurate 5 types combining the 3 KGs... (limit 20 of each of them and then retrieve top-k)
         dbpedia = DBpediaLookup()
-        json = dbpedia.getJSONRequest(dbpedia.createParams(query, limit))
-        dbpedia_entities = dbpedia.extractKGEntities(json) 
+        dbpedia_entities = dbpedia.getKGEntities(query, limit, filter)
+        
         
         #We complement with types from endpoint and check if they are correct/compatible
         for entity in dbpedia_entities:
             self.__analyseEntityTypes(entity)
         
         
+        
+        
+        return dbpedia_entities
     
+    
+        #Next steps
         #Find equivalent entities from wikidata (using both wikidata and dbpedia endpoints), 
         #then its types and then try to find conflictive types (it could even be by voting)
         
-        
-        
         '''
         kg = GoogleKGLookup()
-        json = kg.getJSONRequest(kg.createParams(query, limit))
-        google_entities = kg.extractKGEntities(json)
          
         wikidata = WikidataAPI()
-        json = wikidata.getJSONRequest(wikidata.createParams(query, limit))
-        wikidata_entities = wikidata.extractKGEntities(json)
-    
-        ep = WikidataEndpoint()
-        types = ep.getAllTypesForEntity("http://www.wikidata.org/entity/Q22")
         
+       
         '''
         
     def __analyseEntityTypes(self, entity):
         
-        print(entity.getId())
+        #print(entity.getId())
         
-        print("\t"+str(entity.getTypes(KG.DBpedia)))
+        #print("\t"+str(entity.getTypes(KG.DBpedia)))
         
         #Filter by type?
         types_endpoint = self.dbpedia_ep.getAllTypesForEntity(entity.getId())
@@ -121,7 +154,7 @@ class Lookup(object):
             entity.addTypes(types_endpoint)
         
         
-        print("\t"+str(entity.getTypes(KG.DBpedia)))
+        #print("\t"+str(entity.getTypes(KG.DBpedia)))
     
     
     '''
@@ -167,6 +200,9 @@ if __name__ == '__main__':
         
     lookup = Lookup()
     
-    lookup.getKGEntities(cell, 5)
+    #lookup.getKGEntities(cell, 5)
+    types = lookup.getTypesForEntity('http://dbpedia.org/resource/Wales')
     
+    for t in types:
+        print(t)
     

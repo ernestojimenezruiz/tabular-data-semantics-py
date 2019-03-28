@@ -42,8 +42,8 @@ class Lookup(object):
         
         return response
     
-        
-       
+    
+    
         
         
 '''
@@ -69,7 +69,7 @@ class DBpediaLookup(Lookup):
         
         
     
-    def createParams(self, query, limit, query_cls=''):
+    def __createParams(self, query, limit, query_cls=''):
         
         params = {
             'QueryClass' : query_cls,
@@ -88,7 +88,7 @@ class DBpediaLookup(Lookup):
     '''
     Returns list of ordered entities according to relevance: dbpedia
     '''
-    def extractKGEntities(self, json):
+    def __extractKGEntities(self, json, filter=''):
         
         entities = list()
         
@@ -109,13 +109,20 @@ class DBpediaLookup(Lookup):
                 self.getKGName()
                 )
             
-            entities.append(kg_entity)
+            #We filter according to givem URI
+            if filter=='' or element['uri']==filter:
+                entities.append(kg_entity)
             #print(kg_entity)
         
         #for entity in entities:
         #    print(entity)    
         return entities
     
+    
+    
+    def getKGEntities(self, query, limit, filter=''):        
+        json = self.getJSONRequest(self.__createParams(query, limit))        
+        return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
     
     
@@ -144,7 +151,7 @@ class WikidataAPI(Lookup):
     
     
     
-    def createParams(self, query, limit):
+    def __createParams(self, query, limit):
         
         params = {
             'action': 'wbsearchentities',
@@ -164,7 +171,7 @@ class WikidataAPI(Lookup):
     '''
     Returns list of ordered entities according to relevance: wikidata
     '''
-    def extractKGEntities(self, json):
+    def __extractKGEntities(self, json, filter=''):
         
         entities = list()
         
@@ -181,11 +188,23 @@ class WikidataAPI(Lookup):
                 self.getKGName()
                 )
             
-            entities.append(kg_entity)
+            
+            #We filter according to givem URI
+            if filter=='' or element['concepturi']==filter:
+                entities.append(kg_entity)
+            
+            
             
         #for entity in entities:
         #    print(entity)    
         return entities
+    
+    
+    
+    def getKGEntities(self, query, limit, filter=''):        
+        json = self.getJSONRequest(self.__createParams(query, limit))        
+        return self.__extractKGEntities(json, filter) #Optionally filter by URI
+    
         
     
     
@@ -214,7 +233,7 @@ class GoogleKGLookup(Lookup):
     def getURL(self):
         return 'https://kgsearch.googleapis.com/v1/entities:search'
 
-    def createParams(self, query, limit):
+    def __createParams(self, query, limit):
         
         params = {
             'query': query,
@@ -234,7 +253,7 @@ class GoogleKGLookup(Lookup):
     '''
     Returns list of ordered entities according to relevance: google
     '''
-    def extractKGEntities(self, json):
+    def __extractKGEntities(self, json, filter=''):
         
         entities = list()
         
@@ -254,40 +273,47 @@ class GoogleKGLookup(Lookup):
                 self.getKGName()
                 )
             
-            entities.append(kg_entity)
+            #We filter according to givem URI
+            if filter=='' or element['result']['@id']==filter:
+                entities.append(kg_entity)
             #print(kg_entity)
         
         #for entity in entities:
         #    print(entity)    
         return entities
+    
+    
+    
+    def getKGEntities(self, query, limit, filter=''):    
+        json = self.getJSONRequest(self.__createParams(query, limit))        
+        return self.__extractKGEntities(json, filter) #Optionally filter by URI
+    
+    
         
 
 if __name__ == '__main__':
     
     #query = 'Taylor Swift'
     query = 'Scotland'
+    #query = 'http://dbpedia.org/resource/Scotland'
     limit=5
     
     kg = GoogleKGLookup()
-    
-    json1 = kg.getJSONRequest(kg.createParams(query, limit))
-    #pprint(json1)    
-    kg.extractKGEntities(json1)
-    
-    
-    
+    entities = kg.getKGEntities(query, limit)
+    for ent in  entities:
+        print(ent)
     
     
     dbpedia = DBpediaLookup()
-    json1 = dbpedia.getJSONRequest(dbpedia.createParams(query, limit))
-    #pprint(json1)   
-    dbpedia.extractKGEntities(json1) 
-    
+    entities = dbpedia.getKGEntities(query, limit)
+    for ent in  entities:
+        print(ent)
     
     
     
     wikidata = WikidataAPI()
-    json1 = wikidata.getJSONRequest(wikidata.createParams(query, limit))
-    #pprint(json1)
-    wikidata.extractKGEntities(json1)
-    
+    entities = wikidata.getKGEntities(query, limit)
+    for ent in  entities:
+        print(ent)
+        
+        

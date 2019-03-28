@@ -14,6 +14,8 @@ class KG(Enum):
 
 class URI_KG(object):
     
+    dbpedia_uri_resource = 'http://dbpedia.org/resource/'
+    
     dbpedia_uri = 'http://dbpedia.org/ontology/'
     wikidata_uri ='http://www.wikidata.org/entity/'
     schema_uri = 'http://schema.org/' 

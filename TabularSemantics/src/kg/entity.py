@@ -25,6 +25,12 @@ class URI_KG(object):
     uris.append(wikidata_uri)
     uris.append(schema_uri)
     
+    uris_resource = list()
+    uris_resource.append(dbpedia_uri_resource)
+    uris_resource.append(wikidata_uri)
+    
+    
+    
     def __init__(self):
         ''''
         '''

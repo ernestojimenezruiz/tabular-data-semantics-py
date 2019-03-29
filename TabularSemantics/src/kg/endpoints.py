@@ -21,6 +21,24 @@ class SPARQLEndpoint(object):
         self.sparqlw.setReturnFormat(JSON)
         
         
+    def getSameEntities(self, ent):
+        
+        query = self.createSPARQLQuerySameAsEntities(ent)
+        
+        
+        return self.getQueryResultsArityOne(query)
+    
+    
+        
+    def getEntitiesForType(self, cls, limit):
+        
+        query = self.createSPARQLEntitiesForClass(cls, limit)
+        
+        #print(query)
+        
+        return self.getQueryResultsArityOne(query)
+    
+        
     def getTypesForEntity(self, entity):
         
         query = self.createSPARQLQueryTypesForSubject(entity)
@@ -54,7 +72,7 @@ class SPARQLEndpoint(object):
         for result in results["results"]["bindings"]:
             #print(result["uri"]["value"])
             uri_value = result["uri"]["value"]
-            if uri_value.startswith(URI_KG.dbpedia_uri) or uri_value.startswith(URI_KG.wikidata_uri) or uri_value.startswith(URI_KG.schema_uri): 
+            if uri_value.startswith(URI_KG.dbpedia_uri) or uri_value.startswith(URI_KG.wikidata_uri) or uri_value.startswith(URI_KG.schema_uri) or uri_value.startswith(URI_KG.dbpedia_uri_resource): 
                 result_set.add(uri_value)
         
         
@@ -80,6 +98,16 @@ class DBpediaEndpoint(SPARQLEndpoint):
         
     def getEndpoint(self):
         return "http://dbpedia.org/sparql"
+
+
+    
+    def createSPARQLEntitiesForClass(self, class_uri, limit=1000):
+            
+        return "SELECT DISTINCT ?uri WHERE { ?uri <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <" + class_uri + "> . } ORDER BY RAND() limit " + str(limit)
+        #return "SELECT DISTINCT ?uri WHERE { ?uri a dbo:Country . } ORDER BY RAND() limit " + str(limit)
+    
+    
+    
 
     def createSPARQLQueryTypesForSubject(self, uri_subject):
             
@@ -124,6 +152,13 @@ class DBpediaEndpoint(SPARQLEndpoint):
         + "}" \
         + "}"
         
+    def createSPARQLQuerySameAsEntities(self, uri_entity):
+        return "SELECT DISTINCT ?uri " \
+        + "WHERE {" \
+        + "{<" + uri_entity + "> <http://www.w3.org/2002/07/owl#sameAs> ?uri " \
+        + "} " \
+        + "}";
+        
 
 class WikidataEndpoint(SPARQLEndpoint):
     '''
@@ -146,6 +181,11 @@ class WikidataEndpoint(SPARQLEndpoint):
         
     def getEndpoint(self):
         return "https://query.wikidata.org/sparql"
+
+
+    def createSPARQLEntitiesForClass(self, class_uri, limit=1000):
+            
+        return "SELECT DISTINCT ?uri WHERE { ?uri <http://www.wikidata.org/prop/direct/P31> <" + class_uri + "> . } ORDER BY RAND() limit " + str(limit)
 
 
     def createSPARQLQueryTypesForSubject(self, uri_subject):
@@ -179,6 +219,16 @@ class WikidataEndpoint(SPARQLEndpoint):
         + "}";
         #P1709: equivalent class
         #P2888: exavt match
+        
+        
+        
+    ##TODO revise
+    def createSPARQLQuerySameAsEntities(self, uri_entity):
+        return "SELECT DISTINCT ?uri " \
+        + "WHERE {" \
+        + "{<" + uri_entity + "> <http://www.wikidata.org/prop/direct/P460> ?uri " \
+        + "} " \
+        + "}";
         
       
     

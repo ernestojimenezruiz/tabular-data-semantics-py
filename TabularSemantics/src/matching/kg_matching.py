@@ -18,18 +18,126 @@ from ontology.onto_access import SchemaOrgOntology
 from kg.entity import KG
 from kg.entity import URI_KG
 
-from util.utilities import is_empty
+from util.utilities import *
 
 
 
-
-'''
-This class aim at providing a lookup access to the KG leading to minimal errors
-It will also optionally combine. No only one KG but several 
-'''
-class Lookup(object):
+class Endpoint(object):
     '''
-    classdocs
+    This class aim at identifying errors in DBpedia ENDPOINT when retrieving samples for training
+    Positive/negative samples for candidate classes 
+    '''
+    
+    def __init__(self): 
+        '''
+        Constructor
+        '''
+        
+        self.dbpedia_ep = DBpediaEndpoint()
+        self.wikidata_ep = WikidataEndpoint()
+        
+        self.lookup = Lookup()
+        
+        
+    
+    
+    def __analyseEntityLooukStrategy(self, ent, cls_uri):
+        '''
+        Analyses correcteness of cls_uri as type of ent using Look-up types
+        '''
+        
+        #Note that if not look-up types, then we return the sparql types as they are
+        ##IF lookup types, the sparql types must be compatible 
+        clean_lookup_types = self.lookup.getTypesForEntity(ent, KG.DBpedia)
+        
+        if cls_uri in clean_lookup_types:
+            return True
+        
+        return False
+    
+        
+        
+    def __analyseEntityWikidataStrategy(self, ent, cls_uri, wikidata_classes):
+        '''
+        Analyses correcteness of cls_uri as type of ent using wikidata
+        '''
+        
+        #b. Get equivalent wikidata entity (if any)
+        same_entities = self.dbpedia_ep.getSameEntities(ent)
+                 
+        wikidata_entities = getFilteredResources(same_entities, KG.Wikidata) ##typically one ebtity
+        
+        
+        ##If no equivalent entities we then go for the lookup strategy
+        if len(wikidata_entities)==0:
+            return self.__analyseEntityLooukStrategy(ent, cls_uri)
+        
+        
+        #print(wikidata_entities)
+        for wk_ent in wikidata_entities:                    
+            #c. Check if wikidata type from (a) is within types of equivalent entity from (b)
+                                
+            #print("\t"+wk_ent)
+            wk_ent_types = self.wikidata_ep.getAllTypesForEntity(wk_ent)  #we consider supertypes to extend compatibility
+                    
+            intersect = wk_ent_types.intersection(wikidata_classes)
+                    
+            if len(intersect)>0:
+                return True
+            
+        
+        return False
+        
+    
+    
+    def getEntitiesForDBPediaClass(self, cls_uri, limit=1000):
+        '''
+        It currently expects a URL from DBpedia
+        '''   
+        
+        ##We query a subset of entities for sampling
+        clean_db_entities = set()
+        db_entities = self.dbpedia_ep.getEntitiesForType(cls_uri, limit)
+        
+        
+        #a. Get equivalent class from wikidata (if any)
+        db_eq_cls = self.dbpedia_ep.getEquivalentClasses(cls_uri)
+        wikidata_classes = getFilteredTypes(db_eq_cls, KG.Wikidata) ##typically one class
+            
+        
+        if (len(wikidata_classes)==0): ## No wikidata class then look-up strategy
+            for ent in db_entities:
+                if self.__analyseEntityLooukStrategy(ent, cls_uri):
+                    clean_db_entities.add(ent)
+        else:
+            for ent in db_entities:
+                if self.__analyseEntityWikidataStrategy(ent, cls_uri, wikidata_classes):
+                    clean_db_entities.add(ent)
+                   
+            
+            
+        print(len(clean_db_entities))
+            
+        return clean_db_entities
+        
+        
+        
+        
+        #Strategy 3: 
+        #Combine dbpedia and wikidata results
+        #for cls_wk in wikidata_cls:
+        #    wd_entities = self.wikidata_ep.getEntitiesForType(cls_wk, limit)
+        #    for ent in wd_entities:
+        #        print(ent)
+        
+        
+
+
+
+class Lookup(object):
+    '''    
+    This class aim at providing a lookup access to the KG leading to minimal errors
+    It will also optionally combine. No only one KG but several 
     '''
        
     def __init__(self): #KGraph=KG.DBpedia
@@ -63,6 +171,8 @@ class Lookup(object):
             ##In case not match in look up
             if is_empty(entities):
                 #We retrieve from SPRQL endpoint
+                #print("empty look-up entities")
+                #TODO Find alternative strategy
                 return self.dbpedia_ep.getAllTypesForEntity(uri_entity)
                 
             else:
@@ -195,14 +305,24 @@ class Lookup(object):
 
 if __name__ == '__main__':
     
+    
+    cls = "http://dbpedia.org/ontology/Country"
+    
+    ep = Endpoint()
+    
+    ep.getEntitiesForDBPediaClass(cls, 50)
+    
+    
+    
+    
     #query = 'Taylor Swift'
-    cell = 'Scotland'
+    #cell = 'Scotland'
         
-    lookup = Lookup()
+    #lookup = Lookup()
     
     #lookup.getKGEntities(cell, 5)
-    types = lookup.getTypesForEntity('http://dbpedia.org/resource/Wales')
+    #types = lookup.getTypesForEntity('http://dbpedia.org/resource/Wales')
     
-    for t in types:
-        print(t)
+    #for t in types:
+    #    print(t)
     

@@ -29,7 +29,7 @@ class Lookup(object):
         #and the urllib.urlopen() function is now urllib.request.urlopen().
         #url = service_url + '?' + urllib.urlencode(params)
         url = self.service_url + '?' + parse.urlencode(params)
-        print(url)
+        #print(url)
         #response = json.loads(urllib.urlopen(url).read())
         
         

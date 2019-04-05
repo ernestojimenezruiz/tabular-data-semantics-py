@@ -20,6 +20,8 @@ from kg.entity import URI_KG
 
 from util.utilities import *
 
+import time
+
 
 
 class Endpoint(object):
@@ -27,6 +29,21 @@ class Endpoint(object):
     This class aim at identifying errors in DBpedia ENDPOINT when retrieving samples for training
     Positive/negative samples for candidate classes 
     '''
+    
+    '''
+    def queryTripleByClass(top_k, c):
+    triples = list()
+    s = sparql.Service(SPARQL_END_POINT, "utf-8", "GET")
+    statement = 'select distinct str(?s), str(?p), str(?o), str(?l) where {?s ?p ?o. ?o rdf:type <%s>. ' \
+                '?o rdfs:label ?l. FILTER( langMatches(lang(?l), "en"))} ORDER BY RAND() limit %d' % (c, top_k)
+    result = s.query(statement)
+    for row in result.fetchone():
+        triples.append([row[0], row[1], row[2], row[3]])
+    return triples
+    '''
+
+    
+    
     
     def __init__(self): 
         '''
@@ -65,7 +82,7 @@ class Endpoint(object):
         #b. Get equivalent wikidata entity (if any)
         same_entities = self.dbpedia_ep.getSameEntities(ent)
                  
-        wikidata_entities = getFilteredResources(same_entities, KG.Wikidata) ##typically one ebtity
+        wikidata_entities = getFilteredResources(same_entities, KG.Wikidata) ##typically one entity
         
         
         ##If no equivalent entities we then go for the lookup strategy
@@ -76,9 +93,10 @@ class Endpoint(object):
         #print(wikidata_entities)
         for wk_ent in wikidata_entities:                    
             #c. Check if wikidata type from (a) is within types of equivalent entity from (b)
-                                
-            #print("\t"+wk_ent)
+                          
+            #print("\t"+wk_ent)      
             wk_ent_types = self.wikidata_ep.getAllTypesForEntity(wk_ent)  #we consider supertypes to extend compatibility
+            time.sleep(0.01) #to avoid limit of calls
                     
             intersect = wk_ent_types.intersection(wikidata_classes)
                     
@@ -97,38 +115,58 @@ class Endpoint(object):
         
         ##We query a subset of entities for sampling
         clean_db_entities = set()
-        db_entities = self.dbpedia_ep.getEntitiesForType(cls_uri, limit)
         
+        offset=0
         
-        #a. Get equivalent class from wikidata (if any)
-        db_eq_cls = self.dbpedia_ep.getEquivalentClasses(cls_uri)
-        wikidata_classes = getFilteredTypes(db_eq_cls, KG.Wikidata) ##typically one class
+        #To guarantee the required number of (clean) entities for the class
+        while len(clean_db_entities) < limit:
             
-        
-        if (len(wikidata_classes)==0): ## No wikidata class then look-up strategy
-            for ent in db_entities:
-                if self.__analyseEntityLooukStrategy(ent, cls_uri):
-                    clean_db_entities.add(ent)
-        else:
-            for ent in db_entities:
-                if self.__analyseEntityWikidataStrategy(ent, cls_uri, wikidata_classes):
-                    clean_db_entities.add(ent)
-                   
+            db_entities = self.dbpedia_ep.getEntitiesForType(cls_uri, offset*limit*5, limit*5) #We extract more than required as many of them will be noisy
             
             
-        print(len(clean_db_entities))
+            #a. Get equivalent class from wikidata (if any)
+            db_eq_cls = self.dbpedia_ep.getEquivalentClasses(cls_uri)
+            wikidata_classes = getFilteredTypes(db_eq_cls, KG.Wikidata) ##typically one class
+                
+            
+            if (len(wikidata_classes)==0): ## No wikidata class then look-up strategy
+                for ent in db_entities:
+                    if len(clean_db_entities)>=limit:
+                        return clean_db_entities 
+                    if self.__analyseEntityLooukStrategy(ent, cls_uri):
+                        clean_db_entities.add(ent)
+            else:
+                for ent in db_entities:
+                    if len(clean_db_entities)>=limit:
+                        return clean_db_entities
+                    if self.__analyseEntityWikidataStrategy(ent, cls_uri, wikidata_classes):
+                        clean_db_entities.add(ent)
+                       
+                
+                
+            print(len(clean_db_entities))
+            offset+=1
+            
+            #Limit of iterations
+            if offset>5:
+                return clean_db_entities
+        
             
         return clean_db_entities
         
         
         
+        #Strategy 3:
+        #Query wikidata if there is equivalent class, then return sameAS dbpedia entities for the wikidata entities
         
-        #Strategy 3: 
+        
+        
+        #Strategy 4: 
         #Combine dbpedia and wikidata results
-        #for cls_wk in wikidata_cls:
-        #    wd_entities = self.wikidata_ep.getEntitiesForType(cls_wk, limit)
-        #    for ent in wd_entities:
-        #        print(ent)
+        
+        
+        
+       
         
         
 
@@ -153,33 +191,38 @@ class Lookup(object):
         self.schema_onto.loadOntology(True)
         
         self.dbpedia_ep = DBpediaEndpoint()
+        self.wikidata_ep = WikidataEndpoint()
         
     
     
     def getTypesForEntity(self, uri_entity, kg=KG.DBpedia):
         
+        #print("QUERY",uri_entity)
+        
         if kg==KG.DBpedia:
+            types=set() 
+            types_redirects = set()
             
-            label=uri_entity
-            if uri_entity.startswith(URI_KG.dbpedia_uri_resource):
-                label=uri_entity.replace(URI_KG.dbpedia_uri_resource, '')
+            #Original entity
+            types.update(self.getTypesForDBPediaEntity(uri_entity))
+                       
+            #Redirects if any
+            #See dbo:wikiPageRedirects -> similar to same_as inside dbpedia
+            redirects = self.dbpedia_ep.getWikiPageRedirect(uri_entity)
             
-            ##we call our method to get look-up types for the URI. Only SPARQL endpoint types may contain errors
-            entities = self.getKGEntities(label, 10, uri_entity) 
-            
-            
-            ##In case not match in look up
-            if is_empty(entities):
-                #We retrieve from SPRQL endpoint
-                #print("empty look-up entities")
-                #TODO Find alternative strategy
-                return self.dbpedia_ep.getAllTypesForEntity(uri_entity)
+            for uri_redirect in redirects: #Typically only one
+                types_redirects.update(self.getTypesForDBPediaEntity(uri_redirect))
                 
-            else:
-                ##only one element
-                for entity in entities:
-                    return entity.getTypes(kg)
             
+            if len(types)==0: #We use the ones of the redirects
+                types.update(types_redirects)
+            else: #types of redirects can be dirty
+                for t in types_redirects:
+                    if self.__checkCompatibilityTypes(t, types):
+                        types.add(t)    
+                
+            
+            return types
                 
         #TBC
         elif kg==KG.Wikidata:
@@ -188,6 +231,158 @@ class Lookup(object):
             pass
         
         return set()
+    
+    
+    
+    def __getTypesLookupStrategy(self, uri_entity):
+        
+        kg=KG.DBpedia
+        
+        label=uri_entity
+        if uri_entity.startswith(URI_KG.dbpedia_uri_resource):
+                label=uri_entity.replace(URI_KG.dbpedia_uri_resource, '')
+            
+        ##we call our method to get look-up types for the URI. Only SPARQL endpoint types may contain errors
+        #It also includes wikidata strategy inside
+        entities = self.getKGEntities(label, 10, uri_entity) #fulter by uri_entity
+            
+            
+        ##In case not match in look up
+        if is_empty(entities):
+            
+            types=set()
+            
+            #Dbpedia Enpoint strategy 
+            types_endpoint = getFilteredTypes(self.dbpedia_ep.getAllTypesForEntity(uri_entity), KG.DBpedia)
+        
+            #Predicates strategy (uses top types)
+            types_domain_range = self.__getTypesPredicateStrategy(uri_entity)
+            
+            if len(types_domain_range)>0:
+            
+                types.update(types_domain_range)
+                
+                ##Check compatibility of types_endpoint
+                for t in types_endpoint:
+                    
+                    if t not in types_domain_range:
+                        if self.__checkCompatibilityTypes(t, types_domain_range):
+                            types.add(t)
+            
+            #If still empty we use 
+            if len(types)==0:
+                #We add endpoint types
+                types.update(types_endpoint)
+        
+            
+            return types
+        
+            
+                
+        else:
+            ##shoudl be only one element from lookup
+            for entity in entities:
+                return entity.getTypes(kg)
+            
+            
+    def __getTypesPredicateStrategy(self, uri_entity):
+        '''
+        Exploits the domain and range types of the predicates in triples with uri_entity as subject or object
+        '''
+        
+        types = set()
+        
+        types.update(getFilteredTypes(self.dbpedia_ep.getTopTypesUsingPredicatesForObject(uri_entity, 3), KG.DBpedia))
+        types.update(getFilteredTypes(self.dbpedia_ep.getTopTypesUsingPredicatesForSubject(uri_entity, 3), KG.DBpedia))
+        
+        
+        return types
+        
+        
+    
+    
+    def __getTypesWikidataStrategy(self, uri_entity):
+        
+        #Gets equivalent wikidata entities
+        same_entities = self.dbpedia_ep.getSameEntities(uri_entity)
+        wikidata_entities = getFilteredResources(same_entities, KG.Wikidata) ##typically one entity
+        
+        wk_ent_types = set()
+        dp_types = set()
+        dp_types_all = set()
+           
+        if len(wikidata_entities)==0:
+            return wk_ent_types
+        
+        for wk_ent in wikidata_entities:                    
+            
+            #print("WK ent: "+wk_ent)
+            
+            #Get types for wikidata entities      
+            wk_ent_types.update(self.wikidata_ep.getAllTypesForEntity(wk_ent))  #we consider all supertypes to extend compatibility
+            
+            
+            #Problematic concept
+            #Wikimedia disambiguation page
+            if URI_KG.wikimedia_disambiguation_concept in wk_ent_types:
+                wk_ent_types.clear()
+            
+            #Check if: wk_ent_types
+            
+            
+            
+          
+        for t in wk_ent_types:    
+            #print("WK cls: " +t)
+            #Get equivalent dbpedia types        
+            #print(self.wikidata_ep.getEquivalentClasses(t))    
+            dp_types.update(getFilteredTypes(self.wikidata_ep.getEquivalentClasses(t), KG.DBpedia))
+            
+        
+        #get superclasses
+        for t in dp_types:    
+            #print("DBp type: " +t)
+            dp_types_all.update(self.dbpedia_ep.getAllSuperClasses(t))
+        
+        
+        return getFilteredTypes(dp_types_all, KG.DBpedia)
+        
+        
+        
+    
+    
+    def getTypesForDBPediaEntity(self, uri_entity):
+        
+        #types=set()
+        
+        #Types from DBpedia Endpoint may be dirty. So we use 2 strategies: wikidata and lookup types
+        #TODO: check compatibility among strategies?
+        
+        #Look-up strategy  also includes wikidata strategy
+        types = self.__getTypesLookupStrategy(uri_entity)
+        
+        
+        if is_empty(types) or (len(types)==1 and "Agent" in list(types)[0]):
+            #Wikidata strategy to complement if empty endpoint and look-up or only type "Agent"
+            types.update(self.__getTypesWikidataStrategy(uri_entity))
+        
+            
+        #print("Main", types) 
+        return types
+        
+        
+        
+       
+        
+        
+        
+        
+            
+            
+        ##Additional strategy...
+        #Check equivalent entity from wikidata, get classes from wikidata, get equivalent in dbpedia enpoint
+        
+        
     
         
         
@@ -244,7 +439,7 @@ class Lookup(object):
         #print("\t"+str(entity.getTypes(KG.DBpedia)))
         
         #Filter by type?
-        types_endpoint = self.dbpedia_ep.getAllTypesForEntity(entity.getId())
+        types_endpoint = getFilteredTypes(self.dbpedia_ep.getAllTypesForEntity(entity.getId()), KG.DBpedia)
         
         #print("\t"+str(types_endpoint))
         
@@ -255,13 +450,45 @@ class Lookup(object):
                 if t not in entity.getTypes():
                     
                     ##Evaluate compatibility with lookup types.
-                    ##In same brunch
+                    ##In same branch
                     ##We use DBpedia for now
                     if self.__checkCompatibilityTypes(t, entity.getTypes(KG.DBpedia)):
                         entity.addType(t) 
                     
         else: #No types from lookup
-            entity.addTypes(types_endpoint)
+            
+            #We use wikidata strategy
+            #Not great for compatibility as we need to better explore the returned types
+            #types_wk_strategy = self.__getTypesWikidataStrategy(entity.getId())
+            
+            
+            #We use range-domain-predicate strategy (uses top-types)
+            types_domain_range = self.__getTypesPredicateStrategy(entity.getId())
+            
+            
+            if len(types_domain_range)>0:
+            
+                entity.addTypes(types_domain_range)
+                
+                ##Check compatibility of types_endpoint
+                for t in types_endpoint:
+                    
+                    if t not in types_domain_range:
+                        if self.__checkCompatibilityTypes(t, types_domain_range):
+                            entity.addType(t)
+                        
+            
+            #If still empty we use 
+            if len(entity.getTypes())==0:
+                #We add endpoint types
+                entity.addTypes(types_endpoint)
+            
+            
+            #We complement with wikidata strategy
+            #entity.addTypes(types_wk_strategy)
+            
+
+            
         
         
         #print("\t"+str(entity.getTypes(KG.DBpedia)))
@@ -307,22 +534,43 @@ if __name__ == '__main__':
     
     
     cls = "http://dbpedia.org/ontology/Country"
+    #cls = "http://dbpedia.org/ontology/Person"
+    
     
     ep = Endpoint()
     
-    ep.getEntitiesForDBPediaClass(cls, 50)
+
+    # seconds passed since epoch
+    init = time.time()
     
+    entities=set()
+    #entities = ep.getEntitiesForDBPediaClass(cls, 50)
+    print("Extracted entities: ", len(entities))
+    for ent in entities:
+        print(ent)
     
+    end = time.time()
+    
+
+    #local_time = time.ctime(seconds)
+    print("Time:", end-init)
     
     
     #query = 'Taylor Swift'
     #cell = 'Scotland'
-        
-    #lookup = Lookup()
     
+    
+    lookup = Lookup()
+    
+    # seconds passed since epoch
+    init = time.time()
     #lookup.getKGEntities(cell, 5)
-    #types = lookup.getTypesForEntity('http://dbpedia.org/resource/Wales')
+    types = lookup.getTypesForEntity('http://dbpedia.org/resource/Wales')
     
-    #for t in types:
-    #    print(t)
+    end = time.time()
+        #local_time = time.ctime(seconds)
+    print("Time:", end-init)
+    
+    for t in types:
+        print(t)
     

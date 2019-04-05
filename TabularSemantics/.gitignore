@@ -111,3 +111,6 @@ ontologies/catalog-v001.xml
 #eclipse
 .project
 .pydevproject
+
+#test
+test-data/

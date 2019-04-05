@@ -10,6 +10,8 @@ from pprint import pprint
 from kg.entity import KGEntity 
 
 
+import time
+
 
 '''
 Parent lookup class
@@ -22,26 +24,34 @@ class Lookup(object):
         self.service_url = lookup_url
         
         
-    def getJSONRequest(self, params):
-        
-        #urllib has been split up in Python 3. 
-        #The urllib.urlencode() function is now urllib.parse.urlencode(), 
-        #and the urllib.urlopen() function is now urllib.request.urlopen().
-        #url = service_url + '?' + urllib.urlencode(params)
-        url = self.service_url + '?' + parse.urlencode(params)
-        #print(url)
-        #response = json.loads(urllib.urlopen(url).read())
+    def getJSONRequest(self, params, attempts=3):
         
         
-        req = request.Request(url)
-        #Customize headers. For example dbpedia lookup returns xml by default
-        req.add_header('Accept', 'application/json')
+        try:
+            #urllib has been split up in Python 3. 
+            #The urllib.urlencode() function is now urllib.parse.urlencode(), 
+            #and the urllib.urlopen() function is now urllib.request.urlopen().
+            #url = service_url + '?' + urllib.urlencode(params)
+            url = self.service_url + '?' + parse.urlencode(params)
+            #print(url)
+            #response = json.loads(urllib.urlopen(url).read())
+            
+            
+            req = request.Request(url)
+            #Customize headers. For example dbpedia lookup returns xml by default
+            req.add_header('Accept', 'application/json')
+            
+            response = json.loads(request.urlopen(req).read())
+            
+            return response
         
-        
-        response = json.loads(request.urlopen(req).read())
-        
-        return response
-    
+        except:
+            
+            print("Lookup '%s' failed. Attempts: %s" % (url, str(attempts)))
+            time.sleep(5) #to avoid limit of calls, sleep 5s
+            attempts-=1
+            if attempts>0:
+                return self.getJSONRequest(params, attempts)
     
     
         
@@ -121,7 +131,7 @@ class DBpediaLookup(Lookup):
     
     
     def getKGEntities(self, query, limit, filter=''):        
-        json = self.getJSONRequest(self.__createParams(query, limit))        
+        json = self.getJSONRequest(self.__createParams(query, limit), 3)        
         return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
     
@@ -202,7 +212,7 @@ class WikidataAPI(Lookup):
     
     
     def getKGEntities(self, query, limit, filter=''):        
-        json = self.getJSONRequest(self.__createParams(query, limit))        
+        json = self.getJSONRequest(self.__createParams(query, limit), 3)        
         return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
         
@@ -285,7 +295,7 @@ class GoogleKGLookup(Lookup):
     
     
     def getKGEntities(self, query, limit, filter=''):    
-        json = self.getJSONRequest(self.__createParams(query, limit))        
+        json = self.getJSONRequest(self.__createParams(query, limit), 3)        
         return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
     

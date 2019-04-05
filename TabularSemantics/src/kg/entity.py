@@ -16,6 +16,8 @@ class URI_KG(object):
     
     dbpedia_uri_resource = 'http://dbpedia.org/resource/'
     
+    dbpedia_uri_property = 'http://dbpedia.org/property/'
+    
     dbpedia_uri = 'http://dbpedia.org/ontology/'
     wikidata_uri ='http://www.wikidata.org/entity/'
     schema_uri = 'http://schema.org/' 
@@ -29,6 +31,7 @@ class URI_KG(object):
     uris_resource.append(dbpedia_uri_resource)
     uris_resource.append(wikidata_uri)
     
+    wikimedia_disambiguation_concept=wikidata_uri+'Q4167410'
     
     
     def __init__(self):

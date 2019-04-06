@@ -56,16 +56,34 @@ class Endpoint(object):
         self.lookup = Lookup()
         
         
+        
+    def __analyseEntityPredicateStrategy(self, ent, cls_uri):
+        '''
+        Analyses correctness of cls_uri as type of ent using Predicate types strategy
+        '''
+        
+        predicate_types = self.lookup.__getTypesPredicateStrategy(ent)
+        
+        if len(predicate_types)==0:
+            return None
+        
+        if cls_uri in predicate_types:
+            return True
+        
+        return False
     
     
     def __analyseEntityLooukStrategy(self, ent, cls_uri):
         '''
-        Analyses correcteness of cls_uri as type of ent using Look-up types
+        Analyses correctness of cls_uri as type of ent using Look-up types
         '''
         
         #Note that if not look-up types, then we return the sparql types as they are
         ##IF lookup types, the sparql types must be compatible 
         clean_lookup_types = self.lookup.getTypesForEntity(ent, KG.DBpedia)
+        
+        if len(clean_lookup_types)==0:
+            return None
         
         if cls_uri in clean_lookup_types:
             return True
@@ -114,44 +132,86 @@ class Endpoint(object):
         '''   
         
         ##We query a subset of entities for sampling
-        clean_db_entities = set()
+        clean_db_entities = dict()
         
         offset=0
         
         #To guarantee the required number of (clean) entities for the class
         while len(clean_db_entities) < limit:
             
-            db_entities = self.dbpedia_ep.getEntitiesForType(cls_uri, offset*limit*5, limit*5) #We extract more than required as many of them will be noisy
+            #db_entities = self.dbpedia_ep.getEntitiesForType(cls_uri, offset*limit*5, limit*5) #We extract more than required as many of them will be noisy
+            db_entities = self.dbpedia_ep.getEntitiesLabelsForType(cls_uri, offset*limit*5, limit*5)
+            #print("Entities",len(db_entities))
             
-            
+            #For wikidata strategy
             #a. Get equivalent class from wikidata (if any)
             db_eq_cls = self.dbpedia_ep.getEquivalentClasses(cls_uri)
             wikidata_classes = getFilteredTypes(db_eq_cls, KG.Wikidata) ##typically one class
+            
+            filtered_look_up=0
+            filtered_wikidata=0
+            filtered_predicates=0
+            
+            for ent in db_entities:
+                if len(clean_db_entities)>=limit:
+                    print("%d, %d, %d, %d" %(len(clean_db_entities), filtered_look_up, filtered_predicates, filtered_wikidata))
+                    return clean_db_entities 
+                
+                results_look_up = self.__analyseEntityLooukStrategy(ent, cls_uri)
+                
+                if results_look_up==None:
+                    
+                    results_predicates = self.__analyseEntityPredicateStrategy(ent, cls_uri)
+                    
+                    if results_predicates==None:
+                        
+                        if self.__analyseEntityWikidataStrategy(ent, cls_uri, wikidata_classes): #wikidata strategy (it is very costly)
+                            clean_db_entities[ent] = db_entities[ent]
+                        else:
+                            filtered_wikidata+=1
+                            #print ("Entity filtered by wikidata", ent)
+                         
+                    elif results_predicates: #passed predicates strategy
+                        clean_db_entities[ent] = db_entities[ent]
+                    else:
+                            #print ("Entity filtered by predicates", ent)
+                            filtered_predicates+=1
+                
+                elif results_look_up: #passed look-up strategy
+                    clean_db_entities[ent] = db_entities[ent]
+                else:
+                    #print ("Entity filtered by look-up", ent)
+                    filtered_look_up+=1
+                
                 
             
-            if (len(wikidata_classes)==0): ## No wikidata class then look-up strategy
-                for ent in db_entities:
-                    if len(clean_db_entities)>=limit:
-                        return clean_db_entities 
-                    if self.__analyseEntityLooukStrategy(ent, cls_uri):
-                        clean_db_entities.add(ent)
-            else:
-                for ent in db_entities:
-                    if len(clean_db_entities)>=limit:
-                        return clean_db_entities
-                    if self.__analyseEntityWikidataStrategy(ent, cls_uri, wikidata_classes):
-                        clean_db_entities.add(ent)
+            
+            #OLD STRATEGY: too slow
+            #if (len(wikidata_classes)==0): ## No wikidata class then look-up strategy
+            #    for ent in db_entities:
+            #        if len(clean_db_entities)>=limit:
+            #            return clean_db_entities 
+            #        if self.__analyseEntityLooukStrategy(ent, cls_uri):
+            #            clean_db_entities.add(ent)
+            #else:
+            #    for ent in db_entities:
+            #        if len(clean_db_entities)>=limit:
+            #            return clean_db_entities
+            #        if self.__analyseEntityWikidataStrategy(ent, cls_uri, wikidata_classes):
+            #            clean_db_entities.add(ent)
                        
                 
                 
-            print(len(clean_db_entities))
+            #print(len(clean_db_entities))
             offset+=1
             
             #Limit of iterations
             if offset>5:
+                print("%d, %d, %d, %d" %(len(clean_db_entities), filtered_look_up, filtered_predicates, filtered_wikidata))
                 return clean_db_entities
         
             
+        print("%d, %d, %d, %d" %(len(clean_db_entities), filtered_look_up, filtered_predicates, filtered_wikidata))
         return clean_db_entities
         
         
@@ -260,7 +320,8 @@ class Lookup(object):
             
             if len(types_domain_range)>0:
             
-                types.update(types_domain_range)
+                #They can be noisy, so do not add them yet
+                #types.update(types_domain_range)
                 
                 ##Check compatibility of types_endpoint
                 for t in types_endpoint:
@@ -268,6 +329,10 @@ class Lookup(object):
                     if t not in types_domain_range:
                         if self.__checkCompatibilityTypes(t, types_domain_range):
                             types.add(t)
+                            
+                #If no compatible types we just use the ones coming from domain/ranges
+                if len(types)>0:
+                    types.update(types_domain_range)
             
             #If still empty we use 
             if len(types)==0:
@@ -292,8 +357,29 @@ class Lookup(object):
         
         types = set()
         
-        types.update(getFilteredTypes(self.dbpedia_ep.getTopTypesUsingPredicatesForObject(uri_entity, 3), KG.DBpedia))
-        types.update(getFilteredTypes(self.dbpedia_ep.getTopTypesUsingPredicatesForSubject(uri_entity, 3), KG.DBpedia))
+        #Top-2
+        types.update(getFilteredTypes(self.dbpedia_ep.getTopTypesUsingPredicatesForObject(uri_entity, 2), KG.DBpedia))
+        
+        #We use top one here, as there less properties associated to an entity. And We only need one wrong to be in the top-k
+        
+        #Top-1
+        #Error-prone as many properties are not properly used
+        #Only uses if current range types are compatible
+        types_domain = getFilteredTypes(self.dbpedia_ep.getTopTypesUsingPredicatesForSubject(uri_entity, 1), KG.DBpedia)
+        
+        #if len(types)==0:
+        #    types.update(types_domain)
+        #else:
+        if len(types)>0:
+            for t in types_domain:
+                if self.__checkCompatibilityTypes(t, types):
+                    types.add(t)
+            
+            
+        
+        #TODO: Alternative Strategies: use intersection of types_range and types_domain in non empty. May increase recall (remove min input/output edges in queries) and precision
+        #If empty then use as now. 
+        
         
         
         return types
@@ -468,7 +554,8 @@ class Lookup(object):
             
             if len(types_domain_range)>0:
             
-                entity.addTypes(types_domain_range)
+                #They can be noisy, so do not add them yet
+                #entity.addTypes(types_domain_range)
                 
                 ##Check compatibility of types_endpoint
                 for t in types_endpoint:
@@ -476,7 +563,10 @@ class Lookup(object):
                     if t not in types_domain_range:
                         if self.__checkCompatibilityTypes(t, types_domain_range):
                             entity.addType(t)
-                        
+                
+                #If no compatible type we just use the ones coming from domain/ranges
+                if len(entity.getTypes())>0:
+                    entity.addTypes(types_domain_range)
             
             #If still empty we use 
             if len(entity.getTypes())==0:

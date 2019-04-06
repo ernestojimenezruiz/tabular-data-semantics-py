@@ -6,10 +6,12 @@ Created on 2 Apr 2019
 
 import json
 
-from matching.kg_matching import Lookup
+from matching.kg_matching import Lookup, Endpoint
 from kg.entity import KG
 from util.utilities import *
 import time
+from collections import OrderedDict
+from kg.endpoints import DBpediaEndpoint
 
 
 
@@ -18,7 +20,9 @@ class JSONUtilities(object):
     
     def __init__(self):
         
-        self.lookup = Lookup()
+        self.smartlookup = Lookup()
+        self.smartendpoint = Endpoint()
+        self.dbpedia_ep = DBpediaEndpoint()
         
      
     def validateEntityToClasses(self, path, file_in, file_out):
@@ -42,7 +46,7 @@ class JSONUtilities(object):
         for entity in data:
                 
             types_tocheck = set(data[entity])
-            types_ref = self.lookup.getTypesForEntity(entity, KG.DBpedia)
+            types_ref = self.smartlookup.getTypesForEntity(entity, KG.DBpedia)
                 
             if is_empty(types_ref):
                 
@@ -114,24 +118,167 @@ class JSONUtilities(object):
         
         
         
+    
+    
+    def createTriplesForClasses(self, path, class_file_r, class_file_s, file_out):
         
         
+        tmp_f = open(path + file_out.replace('.json','')+'.csv', 'w')
+        
+        
+        #Read candidate classes
+        classes = set()
+        e_classes = json.load(open(path+class_file_r))
+        for c_list in e_classes.values():
+            for c in c_list:
+                classes.add(c)
+                
+        #print(len(classes))
+        
+        e_classes = json.load(open(path+class_file_s))
+        for c_list in e_classes.values():
+            for c in c_list:
+                classes.add(c)
+                
+        #print(len(classes))
+
+
+        #Play with different numbers depending on the cost....
+        #For each class extract 50-100-200 entities
+        
+        #Tests
+        #entities = self.smartendpoint.getEntitiesForDBPediaClass("http://dbpedia.org/ontology/BaseballTeam", 100)
+        #for e, label in entities.items():
+        #    print(e, list(label)[0])
+        #classes = set()
+        
+        
+        
+        #Dict to convert to jason
+        class_triples = dict()
+         
+        for c_uri in classes:
+            
+            #if len(class_triples)>5:
+            #    break
+            
+            print(c_uri)
+            
+            i = time.time()
+            
+            tmp_f.write('%s\n' % (c_uri))
+            
+            #Dictionary entity-label
+            entities = self.smartendpoint.getEntitiesForDBPediaClass(c_uri, 500)
+                
+            
+            #For each above entity (?o) extract triples ?s ?p ?o, together with the label of ?o
+            #Extract from 10-50 triples for entity, filter ?p NOT IN: show top ones we aim at discard
+            
+            triples = list()
+            
+            for object_uri in entities:
+                '''
+                '''
+                #label 
+                label = list(entities[object_uri])[0]
+                
+                #Triples for object entity
+                subjects_predicates = self.dbpedia_ep.getTriplesForObject(object_uri, 50)
+                
+                for subject in subjects_predicates:
+                    for predicate in subjects_predicates[subject]:
+                        
+                        triple = [subject, predicate, object_uri, label]
+                        triples.append(triple)
+                        
+                        tmp_f.write('%s\n' % (",".join(triple)))
+                           
+            
+            #end for entities
+        
+            print("\tTriples", len(triples))
+            class_triples[c_uri] = triples
+            
+            e = time.time()
+            print("Time:", e-i)
+        
+        #end for classes
+        
+        
+        #We save the new triples
+        tmp_f.close()
+        print(len(class_triples), path+file_out)
+        self.dumpJsonFile(class_triples, path+file_out)
+        
+    
+
                 
                 
     #TBC
     def validateClassTriples(self, file):
+        
+        
+        
+        
         with open(file) as f:
             data = json.load(f)
             
-            i=0
+            
+            predicate_count=dict()
+            
+            n_triples = 0
+            
+            empty_entries = 0
             
             for entity in data:
+                subjects = set()
+                predicates = set()
+                objects = set()
+                
                 print(entity, len(data[entity]))
-                print("\t",data[entity][0])
-                i+=1
-            print(i)
+                
+                if len(data[entity])==0:
+                    empty_entries+=1
+                
+                n_triples+=len(data[entity])
+                
+                n_triples_class=0
+                
+                for triple in data[entity]: 
+                    
+                    if triple[1] in URI_KG.avoid_predicates:
+                        continue
+                    
+                    if not triple[1].startswith(URI_KG.dbpedia_uri) and not triple[1].startswith(URI_KG.dbpedia_uri_property):
+                        continue
+                    
+                    n_triples_class+=1
+                    
+                    subjects.add(triple[0])
+                    
+                    if triple[1] not in predicate_count:
+                        predicate_count[triple[1]]=0
+                    
+                    predicate_count[triple[1]]+=1
+                    
+                    predicates.add(triple[1])
+                    objects.add(triple[2])
+                    #print("\t",data[entity][0])
+                
+                print("\t Different Triples, Subjects, predicates, objects: %s, %s, %s, %s" % (str(n_triples_class), str(len(subjects)), str(len(predicates)), str(len(objects))))
+             
+            
+            print("Empty entries", empty_entries)    
             
             
+            predicate_count_sorted = OrderedDict(sorted(predicate_count.items(), key=lambda x: x[1]))
+            
+            #for k, v in predicate_count_sorted.items():
+            #    print(k, v)
+                
+                
+            print(len(data), n_triples)
 
     def dumpJsonFile(self, data_json, file):            
         with open(file, "w") as write_file:
@@ -154,18 +301,24 @@ if __name__ == '__main__':
     
     #General samples #339 classes
     file_gs = "class_triple.json"
+    file_gs_triples_new = "class_triple_fixed.json"
     
     init = time.time()
     
     util = JSONUtilities()
     
     #util.validateEntityToClasses(path, file_ps_s, file_ps_s_new)
-    util.validateEntityToClasses(path, file_ps_r, file_ps_r_new)
-    #util.validateEntityToClasses(path, "small_test.json", "small_test_fixed.json")
+    #util.validateEntityToClasses(path, file_ps_r, file_ps_r_new)
+    #util.validateEntityToClasses(path, "small_test.json", "small_test_fixed.json") #Test
     
     
     
-    #util.validateClassTriples(file_gs)  
+    #util.validateClassTriples(path+file_gs)  #Statistics
+    
+    util.createTriplesForClasses(path, file_ps_r_new, file_ps_s_new, file_gs_triples_new)
+    
+    
+    
     
     end = time.time()
     print("Time:", end-init)

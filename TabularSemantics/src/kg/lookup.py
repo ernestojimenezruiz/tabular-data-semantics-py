@@ -48,7 +48,7 @@ class Lookup(object):
         except:
             
             print("Lookup '%s' failed. Attempts: %s" % (url, str(attempts)))
-            time.sleep(5) #to avoid limit of calls, sleep 5s
+            time.sleep(30) #to avoid limit of calls, sleep 30s
             attempts-=1
             if attempts>0:
                 return self.getJSONRequest(params, attempts)

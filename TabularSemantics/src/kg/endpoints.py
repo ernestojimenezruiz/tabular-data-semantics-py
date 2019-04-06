@@ -39,6 +39,16 @@ class SPARQLEndpoint(object):
         
         return self.getQueryResultsArityOne(query)
     
+    
+    def getEntitiesLabelsForType(self, cls, offset=0, limit=1000):
+        
+        query = self.createSPARQLEntitiesLabelsForClass(cls, offset, limit)
+        
+        #print(query)
+        
+        #Second element is a string so we do not filter it
+        return self.getQueryResultsArityTwo(query, True, False)
+    
         
     def getTypesForEntity(self, entity):
         
@@ -119,6 +129,7 @@ class SPARQLEndpoint(object):
         
         return self.getQueryResultsArityTwo(query)
         
+        
     def getTriplesForObject(self, obj_entity, limit=1000):
         
         query = self.createSPARQLQueryTriplesForObject(obj_entity, limit)
@@ -140,13 +151,13 @@ class SPARQLEndpoint(object):
         except:
             
             print("Query '%s' failed. Attempts: %s" % (query, str(attempts)))
-            time.sleep(5) #to avoid limit of calls, sleep 5s
+            time.sleep(30) #to avoid limit of calls, sleep 30s
             attempts-=1
             if attempts>0:
                 return self.getQueryResults(query, attempts)
 
 
-    def getQueryResultsArityOne(self, query):
+    def getQueryResultsArityOne(self, query, filter_uri=True):
         
         
         results = self.getQueryResults(query, 3)
@@ -159,7 +170,7 @@ class SPARQLEndpoint(object):
             #print(result["uri"]["value"])
             uri_value = result["uri"]["value"]
             
-            if uri_value.startswith(URI_KG.dbpedia_uri) or uri_value.startswith(URI_KG.wikidata_uri) or uri_value.startswith(URI_KG.schema_uri) or uri_value.startswith(URI_KG.dbpedia_uri_resource) or uri_value.startswith(URI_KG.dbpedia_uri_property): 
+            if not filter_uri or uri_value.startswith(URI_KG.dbpedia_uri) or uri_value.startswith(URI_KG.wikidata_uri) or uri_value.startswith(URI_KG.schema_uri) or uri_value.startswith(URI_KG.dbpedia_uri_resource) or uri_value.startswith(URI_KG.dbpedia_uri_property): 
                 result_set.add(uri_value)
         
         
@@ -167,7 +178,7 @@ class SPARQLEndpoint(object):
     
     
     
-    def getQueryResultsArityTwo(self, query):
+    def getQueryResultsArityTwo(self, query, filter_outA=True, filter_outB=True):
         
         #self.sparqlw.setQuery(query)
         #results = self.sparqlw.query().convert()
@@ -179,18 +190,18 @@ class SPARQLEndpoint(object):
         for result in results["results"]["bindings"]:
             #print(result)
             #print(result["uri"]["value"])
-            uria_value = result["uria"]["value"]
-            urib_value = result["urib"]["value"]
+            outA_value = result["outA"]["value"]
+            outB_value = result["outB"]["value"]
             
             
-            if uria_value.startswith(URI_KG.dbpedia_uri) or uria_value.startswith(URI_KG.wikidata_uri) or uria_value.startswith(URI_KG.schema_uri) or uria_value.startswith(URI_KG.dbpedia_uri_resource) or uria_value.startswith(URI_KG.dbpedia_uri_property): 
+            if not filter_outA or outA_value.startswith(URI_KG.dbpedia_uri) or outA_value.startswith(URI_KG.wikidata_uri) or outA_value.startswith(URI_KG.schema_uri) or outA_value.startswith(URI_KG.dbpedia_uri_resource) or outA_value.startswith(URI_KG.dbpedia_uri_property): 
                 
-                    if urib_value.startswith(URI_KG.dbpedia_uri) or urib_value.startswith(URI_KG.wikidata_uri) or urib_value.startswith(URI_KG.schema_uri) or urib_value.startswith(URI_KG.dbpedia_uri_resource) or urib_value.startswith(URI_KG.dbpedia_uri_property):
+                    if not filter_outB or outB_value.startswith(URI_KG.dbpedia_uri) or outB_value.startswith(URI_KG.wikidata_uri) or outB_value.startswith(URI_KG.schema_uri) or outB_value.startswith(URI_KG.dbpedia_uri_resource) or outB_value.startswith(URI_KG.dbpedia_uri_property):
                         
-                        if uria_value not in result_dict:
-                            result_dict[uria_value] = set() 
+                        if outA_value not in result_dict:
+                            result_dict[outA_value] = set() 
                         
-                        result_dict[uria_value].add(urib_value)
+                        result_dict[outA_value].add(outB_value)
                 
         
         return result_dict
@@ -202,10 +213,26 @@ class SPARQLEndpoint(object):
 
 
     def createSPARQLQueryTriplesForObject(self, obj, limit=1000):
-        return "SELECT DISTINCT ?uria ?urib WHERE { ?uria ?urib <" + obj + "> . } limit " + str(limit)
+        
+        props_to_filter=""
+        for p in URI_KG.avoid_predicates:
+            props_to_filter+="<" + p + ">," 
+        props_to_filter = props_to_filter[0:len(props_to_filter)-1]
+        
+        #props_to_filter = ",".join(URI_KG.avoid_predicates)        
+        
+        return "SELECT DISTINCT ?outA ?outB WHERE { ?outA ?outB <" + obj + "> . FILTER( ?outB NOT IN("+ props_to_filter+")) } limit " + str(limit)
         
     def createSPARQLQueryTriplesForSubject(self, subject, limit=1000):
-        return "SELECT DISTINCT ?uria ?urib WHERE { <" + subject + "> ?uria ?urib . } limit " + str(limit)
+        
+        props_to_filter=""
+        for p in URI_KG.avoid_predicates:
+            props_to_filter+="<" + p + ">," 
+        props_to_filter = props_to_filter[0:len(props_to_filter)-1]
+        
+        #props_to_filter = ",".join(URI_KG.avoid_predicates)
+        
+        return "SELECT DISTINCT ?outA ?outB WHERE { <" + subject + "> ?outA ?outB . FILTER( ?outB NOT IN("+ props_to_filter+")) } limit " + str(limit)
     
     
     def createSPARQLQueryPredicatesForSubject(self, subject, limit=1000):
@@ -223,16 +250,16 @@ class SPARQLEndpoint(object):
     
     
     
-    #SELECT DISTINCT ?uria COUNT(?uria) as ?urib WHERE { [] ?p <http://dbpedia.org/resource/Scotland> . ?p rdfs:range ?uria . } GROUP BY ?uria ORDER BY DESC(?urib) limit 3
-    #SELECT DISTINCT ?uria WHERE { [] ?p <http://dbpedia.org/resource/Scotland> . ?p rdfs:range ?uria . } GROUP BY ?uria ORDER BY DESC(COUNT(?uria)) limit 3
-    #SELECT DISTINCT ?uria WHERE { <http://dbpedia.org/resource/Allan_Pinkerton> ?p [] . ?p rdfs:domain ?uria . } GROUP BY ?uria ORDER BY DESC(COUNT(?uria)) limit 3
-    #SELECT DISTINCT ?uria COUNT(?uria) as ?urib WHERE { <http://dbpedia.org/resource/Allan_Pinkerton> ?p [] . ?p rdfs:domain ?uria . } GROUP BY ?uria ORDER BY DESC(?urib) limit 3 
+    #SELECT DISTINCT ?outA COUNT(?outA) as ?outB WHERE { [] ?p <http://dbpedia.org/resource/Scotland> . ?p rdfs:range ?outA . } GROUP BY ?outA ORDER BY DESC(?outB) limit 3
+    #SELECT DISTINCT ?outA WHERE { [] ?p <http://dbpedia.org/resource/Scotland> . ?p rdfs:range ?outA . } GROUP BY ?outA ORDER BY DESC(COUNT(?outA)) limit 3
+    #SELECT DISTINCT ?outA WHERE { <http://dbpedia.org/resource/Allan_Pinkerton> ?p [] . ?p rdfs:domain ?outA . } GROUP BY ?outA ORDER BY DESC(COUNT(?outA)) limit 3
+    #SELECT DISTINCT ?outA COUNT(?outA) as ?outB WHERE { <http://dbpedia.org/resource/Allan_Pinkerton> ?p [] . ?p rdfs:domain ?outA . } GROUP BY ?outA ORDER BY DESC(?outB) limit 3 
     
     def createSPARQLQueryDomainTypesCountOfPredicatesForSubject(self, subject, limit=3):
-        return "SELECT DISTINCT ?uri WHERE { <" + subject + "> ?p [] . ?p rdfs:domain ?uri . } GROUP BY ?uri ORDER BY DESC(COUNT(?uri)) limit " + str(limit)
+        return "SELECT DISTINCT ?uri WHERE { <" + subject + "> ?p [] . ?p rdfs:domain ?uri . } GROUP BY ?uri HAVING (COUNT(?uri) > 3) ORDER BY DESC(COUNT(?uri)) limit " + str(limit)
     
     def createSPARQLQueryRangeTypesCountOfPredicatesForObject(self, obj, limit=3):
-        return "SELECT DISTINCT ?uri WHERE { [] ?p <" + obj + "> . ?p rdfs:range ?uri . } GROUP BY ?uri ORDER BY DESC(COUNT(?uri)) limit " + str(limit)
+        return "SELECT DISTINCT ?uri WHERE { [] ?p <" + obj + "> . ?p rdfs:range ?uri . } GROUP BY ?uri HAVING (COUNT(?uri) > 3) ORDER BY DESC(COUNT(?uri)) limit " + str(limit)
     
     
 
@@ -272,6 +299,14 @@ class DBpediaEndpoint(SPARQLEndpoint):
         return "SELECT DISTINCT ?uri WHERE { ?uri <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <" + class_uri + "> . } ORDER BY RAND() OFFSET " + str(offset) + " limit " + str(limit)
         #return "SELECT DISTINCT ?uri WHERE { ?uri a dbo:Country . } ORDER BY RAND() limit " + str(limit)
     
+    
+    
+    def createSPARQLEntitiesLabelsForClass(self, class_uri, offset=0, limit=1000):
+            
+        return "SELECT DISTINCT ?outA ?outB WHERE { ?outA <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <" + class_uri + "> . ?outA rdfs:label ?outB . FILTER( langMatches(lang(?outB), 'en')) } ORDER BY RAND() OFFSET " + str(offset) + " limit " + str(limit)
+        #Lang restriction required
+        #return "SELECT DISTINCT ?outA ?outB WHERE { ?outA <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <" + class_uri + "> . ?outA rdfs:label ?outB . } ORDER BY RAND() OFFSET " + str(offset) + " limit " + str(limit)
+       
     
     
 
@@ -438,6 +473,15 @@ if __name__ == '__main__':
     #print(len(types), types)
     
     
+    cls = "http://dbpedia.org/ontology/BaseballTeam"
+    
+    entities = ep.getEntitiesForType(cls, 0, 100)
+    for e in entities:
+        print(e)
+    entities = ep.getEntitiesLabelsForType(cls, 0, 100)
+    for e, label in entities.items():
+        print(e, label)
+    
     
     #predicatesForSubject = ep.getPredicatesForSubject(ent, 10)
     #for p in predicatesForSubject:
@@ -462,6 +506,8 @@ if __name__ == '__main__':
     cls = "http://dbpedia.org/ontology/Country"
     #cls = "http://dbpedia.org/ontology/Person"
     cls = 'http://www.wikidata.org/entity/Q6256'
+    
+   
     
     
     

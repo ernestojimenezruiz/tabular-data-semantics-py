@@ -34,9 +34,26 @@ class URI_KG(object):
     wikimedia_disambiguation_concept=wikidata_uri+'Q4167410'
     
     
+    avoid_predicates=set()
+    avoid_predicates.add("http://dbpedia.org/ontology/wikiPageDisambiguates")
+    avoid_predicates.add("http://dbpedia.org/ontology/wikiPageRedirects")
+    avoid_predicates.add("http://dbpedia.org/ontology/wikiPageWikiLink")
+    avoid_predicates.add("http://www.w3.org/2000/01/rdf-schema#seeAlso")
+    avoid_predicates.add("http://purl.org/linguistics/gold/hypernym")
+    avoid_predicates.add("http://xmlns.com/foaf/0.1/primaryTopic")
+    avoid_predicates.add("http://www.w3.org/2002/07/owl#differentFrom")
+    avoid_predicates.add("http://www.w3.org/2002/07/owl#sameAs")
+    avoid_predicates.add("http://dbpedia.org/property/related")
+    
+    
+    
+    
     def __init__(self):
         ''''
         '''
+        
+        
+        
 
 
 

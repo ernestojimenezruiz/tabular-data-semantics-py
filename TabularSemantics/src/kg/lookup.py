@@ -48,11 +48,12 @@ class Lookup(object):
         except:
             
             print("Lookup '%s' failed. Attempts: %s" % (url, str(attempts)))
-            time.sleep(30) #to avoid limit of calls, sleep 30s
+            time.sleep(60) #to avoid limit of calls, sleep 60s
             attempts-=1
             if attempts>0:
                 return self.getJSONRequest(params, attempts)
-    
+            else:
+                return None
     
         
         
@@ -131,7 +132,12 @@ class DBpediaLookup(Lookup):
     
     
     def getKGEntities(self, query, limit, filter=''):        
-        json = self.getJSONRequest(self.__createParams(query, limit), 3)        
+        json = self.getJSONRequest(self.__createParams(query, limit), 3)
+        
+        if json==None:
+            print("None results for", query)
+            return list()
+        
         return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
     
@@ -212,7 +218,12 @@ class WikidataAPI(Lookup):
     
     
     def getKGEntities(self, query, limit, filter=''):        
-        json = self.getJSONRequest(self.__createParams(query, limit), 3)        
+        json = self.getJSONRequest(self.__createParams(query, limit), 3)     
+        
+        if json==None:
+            print("None results for", query)
+            return list()
+           
         return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
         
@@ -295,7 +306,12 @@ class GoogleKGLookup(Lookup):
     
     
     def getKGEntities(self, query, limit, filter=''):    
-        json = self.getJSONRequest(self.__createParams(query, limit), 3)        
+        json = self.getJSONRequest(self.__createParams(query, limit), 3)
+        
+        if json==None:
+            print("None results for", query)
+            return list()
+        
         return self.__extractKGEntities(json, filter) #Optionally filter by URI
     
     

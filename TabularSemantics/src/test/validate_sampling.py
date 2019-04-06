@@ -5,6 +5,7 @@ Created on 2 Apr 2019
 '''
 
 import json
+import os
 
 from matching.kg_matching import Lookup, Endpoint
 from kg.entity import KG
@@ -123,7 +124,7 @@ class JSONUtilities(object):
     def createTriplesForClasses(self, path, class_file_r, class_file_s, file_out):
         
         
-        tmp_f = open(path + file_out.replace('.json','')+'.csv', 'w')
+        tmp_f = open(path + file_out.replace('.json','')+'.csv', 'a+')
         
         
         #Read candidate classes
@@ -155,9 +156,17 @@ class JSONUtilities(object):
         
         
         #Dict to convert to jason
-        class_triples = dict()
+        #class_triples = dict()
+        cache_file = path + file_out
+        class_triples = json.load(open(cache_file)) if os.path.exists(cache_file) else dict()
+
+
          
         for c_uri in classes:
+            
+            if c_uri in class_triples: #already analysed/cached
+                continue
+            
             
             #if len(class_triples)>5:
             #    break
@@ -200,8 +209,13 @@ class JSONUtilities(object):
             print("\tTriples", len(triples))
             class_triples[c_uri] = triples
             
+            #We dump, so that if it we breaks we can continue from there
+            self.dumpJsonFile(class_triples, path+file_out)
+           
             e = time.time()
+            
             print("Time:", e-i)
+            
         
         #end for classes
         

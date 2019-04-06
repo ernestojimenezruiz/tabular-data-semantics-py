@@ -151,10 +151,12 @@ class SPARQLEndpoint(object):
         except:
             
             print("Query '%s' failed. Attempts: %s" % (query, str(attempts)))
-            time.sleep(30) #to avoid limit of calls, sleep 30s
+            time.sleep(60) #to avoid limit of calls, sleep 60s
             attempts-=1
             if attempts>0:
                 return self.getQueryResults(query, attempts)
+            else:
+                return None
 
 
     def getQueryResultsArityOne(self, query, filter_uri=True):
@@ -164,6 +166,11 @@ class SPARQLEndpoint(object):
             
             
         result_set = set()
+    
+        if results==None:
+            print("None results for", query)
+            return result_set
+            
     
         for result in results["results"]["bindings"]:
             #print(result)
@@ -186,6 +193,11 @@ class SPARQLEndpoint(object):
         results = self.getQueryResults(query, 3)
     
         result_dict = dict()
+        
+        if results==None:
+            print("None results for", query)
+            return result_dict
+        
     
         for result in results["results"]["bindings"]:
             #print(result)

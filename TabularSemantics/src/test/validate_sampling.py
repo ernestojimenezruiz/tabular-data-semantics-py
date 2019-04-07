@@ -159,19 +159,23 @@ class JSONUtilities(object):
         #class_triples = dict()
         cache_file = path + file_out
         class_triples = json.load(open(cache_file)) if os.path.exists(cache_file) else dict()
-
+        
+        print("Class triples initial size", str(len(class_triples)))
 
          
         for c_uri in classes:
             
+            print(c_uri)
+            
             if c_uri in class_triples: #already analysed/cached
+                print("\tAlready cached!")
                 continue
             
             
             #if len(class_triples)>5:
             #    break
             
-            print(c_uri)
+            
             
             i = time.time()
             
@@ -313,6 +317,9 @@ if __name__ == '__main__':
     file_ps_s = "SData_entity_class.json"
     file_ps_s_new = "SData_entity_class_fixed.json"
     
+    file_GT_s = "SData_Type.json"
+    file_GT_s_new = "SData_Type_fixed.json"
+    
     #General samples #339 classes
     file_gs = "class_triple.json"
     file_gs_triples_new = "class_triple_fixed.json"
@@ -321,13 +328,16 @@ if __name__ == '__main__':
     
     util = JSONUtilities()
     
-    #util.validateEntityToClasses(path, file_ps_s, file_ps_s_new)
-    #util.validateEntityToClasses(path, file_ps_r, file_ps_r_new)
+    #util.validateEntityToClasses(path, file_ps_s, file_ps_s_new)   #SDATA
+    #util.validateEntityToClasses(path, file_ps_r, file_ps_r_new)   #RDATA
+    #util.validateEntityToClasses(path, file_GT_s, file_GT_s_new)   #SDATA GT
     #util.validateEntityToClasses(path, "small_test.json", "small_test_fixed.json") #Test
     
     
     
     #util.validateClassTriples(path+file_gs)  #Statistics
+    
+    
     
     util.createTriplesForClasses(path, file_ps_r_new, file_ps_s_new, file_gs_triples_new)
     

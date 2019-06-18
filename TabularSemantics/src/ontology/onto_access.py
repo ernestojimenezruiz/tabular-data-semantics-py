@@ -59,6 +59,15 @@ class OntologyAccess(object):
     
     
     
+    def getAncestorsURIsMinusClass(self,cls):
+        ancestors_str = self.getAncestorsURIs(cls)
+        
+        ancestors_str.remove(cls.iri)
+        
+        return ancestors_str
+    
+    
+    
     def getAncestorsURIs(self,cls):
         ancestors_str = set()
         
@@ -97,6 +106,25 @@ class OntologyAccess(object):
             descendants_str.add(desc_cls.name)
     
         return descendants_str
+    
+    
+    
+    def isSubClassOf(self, sub_cls1, sup_cls2):
+        
+        if sup_cls2 in sub_cls1.ancestors():
+            return True
+        return False
+    
+    
+    def isSuperClassOf(self, sup_cls1, sub_cls2):
+        
+        if sup_cls1 in sub_cls2.ancestors():
+            return True
+        return False
+    
+    
+    
+    
         
 
 class DBpediaOntology(OntologyAccess):
@@ -110,6 +138,20 @@ class DBpediaOntology(OntologyAccess):
         
     def getOntologyIRI(self):
         return "http://www.cs.ox.ac.uk/isg/ontologies/dbpedia.owl"
+    
+    
+    def getAncestorsURIs(self,cls):
+        ancestors_str = set()
+        
+        for anc_cls in cls.ancestors():
+            ancestors_str.add(anc_cls.iri)
+        
+        agent = "http://dbpedia.org/ontology/Agent"
+        if agent in ancestors_str:
+            ancestors_str.remove(agent)
+        
+        return ancestors_str
+    
     
 class SchemaOrgOntology(OntologyAccess):
     

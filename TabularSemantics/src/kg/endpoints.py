@@ -304,6 +304,12 @@ class DBpediaEndpoint(SPARQLEndpoint):
         return self.getQueryResultsArityOne(query)
     
     
+    def getWikiPageRedirectFrom(self, uri_entity):
+        
+        query = self.createSPARQLQueryWikiPageRedirectsFrom(uri_entity)        
+        return self.getQueryResultsArityOne(query)
+    
+    
     
     def createSPARQLEntitiesForClass(self, class_uri, offset=0, limit=1000):
             
@@ -331,6 +337,11 @@ class DBpediaEndpoint(SPARQLEndpoint):
     def createSPARQLQueryWikiPageRedirects(self, uri_subject):
             
         return "SELECT DISTINCT ?uri WHERE { <" + uri_subject + "> <http://dbpedia.org/ontology/wikiPageRedirects> ?uri . }"
+    
+    
+    def createSPARQLQueryWikiPageRedirectsFrom(self, uri_object):
+            
+        return "SELECT DISTINCT ?uri WHERE { ?uri <http://dbpedia.org/ontology/wikiPageRedirects> <" + uri_object + "> . }"
     
      
         
@@ -481,8 +492,8 @@ if __name__ == '__main__':
     #ent = 'http://www.wikidata.org/entity/Q22'
 
     ep = DBpediaEndpoint()
-    types = ep.getAllTypesForEntity("http://dbpedia.org/resource/Scotland")
-    #print(len(types), types)
+    types = ep.getAllTypesForEntity("http://dbpedia.org/resource/Hern%C3%A1n_Andrade")
+    print(len(types), types)
     
     
     cls = "http://dbpedia.org/ontology/BaseballTeam"

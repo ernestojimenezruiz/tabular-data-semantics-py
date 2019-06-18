@@ -564,15 +564,20 @@ class Lookup(object):
                         if self.__checkCompatibilityTypes(t, types_domain_range):
                             entity.addType(t)
                 
+                #DANGEROUS, as domain and range types contain amny errors
                 #If no compatible type we just use the ones coming from domain/ranges
-                if len(entity.getTypes())>0:
-                    entity.addTypes(types_domain_range)
+                #if len(entity.getTypes())>0:
+                #    entity.addTypes(types_domain_range)
             
-            #If still empty we use 
+            #If still empty we use endpoint
             if len(entity.getTypes())==0:
                 #We add endpoint types
                 entity.addTypes(types_endpoint)
             
+            
+            ##Last resource if not types
+            if len(entity.getTypes())>0:
+                entity.addTypes(types_domain_range)
             
             #We complement with wikidata strategy
             #entity.addTypes(types_wk_strategy)

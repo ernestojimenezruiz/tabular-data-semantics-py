@@ -299,12 +299,19 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
                 
                 
                 entities=set()
-                entities.add(entity_uri)
+                new_entities=set()
+                
                 ##Consider redirects:
                 entities.update(dbpedia_ep.getWikiPageRedirect(entity_uri))
                 entities.update(dbpedia_ep.getWikiPageRedirectFrom(entity_uri))
                 
+                for e in entities:
+                    new_entities.update(dbpedia_ep.getWikiPageRedirect(e))
+                    new_entities.update(dbpedia_ep.getWikiPageRedirectFrom(e))
                 
+                
+                entities.add(entity_uri)
+                entities.update(new_entities)
                 
                 if column_id >= 0:
                     #Output
@@ -427,4 +434,4 @@ tablesToChallengeFormat(
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/tables_instance/csv/",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10k.csv",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10k.csv",
-    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10k.csv", 10000)
+    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10.csv", 10)

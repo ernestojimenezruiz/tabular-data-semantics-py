@@ -280,7 +280,15 @@ class Lookup(object):
                 for t in types_redirects:
                     if self.__checkCompatibilityTypes(t, types):
                         types.add(t)    
-                
+            
+            
+            #Commented because it was slow for a large dataset
+            #if is_empty(types) or (len(types)==1 and "Agent" in list(types)[0]):
+            #    #Wikidata strategy to complement if empty endpoint and look-up or only type "Agent"
+            #    print(types)
+            #    types.update(self.__getTypesWikidataStrategy(uri_entity))
+            #    print(types)
+            
             
             return types
                 
@@ -389,6 +397,8 @@ class Lookup(object):
     
     def __getTypesWikidataStrategy(self, uri_entity):
         
+        print("\tUsing wikidata strategy for " + uri_entity)
+        
         #Gets equivalent wikidata entities
         same_entities = self.dbpedia_ep.getSameEntities(uri_entity)
         wikidata_entities = getFilteredResources(same_entities, KG.Wikidata) ##typically one entity
@@ -448,11 +458,6 @@ class Lookup(object):
         types = self.__getTypesLookupStrategy(uri_entity)
         
         
-        if is_empty(types) or (len(types)==1 and "Agent" in list(types)[0]):
-            #Wikidata strategy to complement if empty endpoint and look-up or only type "Agent"
-            types.update(self.__getTypesWikidataStrategy(uri_entity))
-        
-            
         #print("Main", types) 
         return types
         

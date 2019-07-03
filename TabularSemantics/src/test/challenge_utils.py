@@ -9,6 +9,8 @@ import pandas as pd
 from os import listdir
 from os.path import isfile, join
 
+import time
+
 from matching.kg_matching import Lookup, Endpoint
 from kg.entity import KG
 from util.utilities import *
@@ -20,10 +22,15 @@ from ontology.onto_access import DBpediaOntology
 
 
 
-def craeteCTATask(file_cea, file_cta_1, file_cta_2):
+def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target):
     
     dict_entities_per_col=dict()
     dict_types_per_col=dict()
+    
+    
+    dict_index_types = dict()
+    
+    
     
     #We need to read from CEA file:
     #We have table, column, row_id and entity
@@ -35,18 +42,25 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2):
         previous_key=""    
         
         for row in csv_reader:
-                
+            
             #table, column, row_id and entity
             if len(row) < 4:
                 continue
     
             key = row[0] + "-col-"+ row[1]
-            if previous_key!=key: #new table or column
+            #The order coudl be arbitrary
+            #if previous_key!=key: #new table or column
+            #    dict_entities_per_col[key] = set()
+            #    previous_key = key
+            if key not in dict_entities_per_col:
                 dict_entities_per_col[key] = set()
-                previous_key = key
+            
             
             #print(dict_entities_per_col)
             #print(key)
+            #for i in range(3,len(row)):
+            #    dict_entities_per_col[key].add(row[i])
+            #No need to add redirections as it is taken already into acount when extracting types
             dict_entities_per_col[key].add(row[3])
             
     
@@ -58,21 +72,33 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2):
     
     
     #Get types
+    num=0
     for key in dict_entities_per_col:
         
         dict_types_per_col[key] = dict()
         
+        num+=1
+        print(key + " " + str(len(dict_entities_per_col[key])) + "  -  (column " + str(num) + " out of " + str(len(dict_entities_per_col)) + ")")
+        
         for entity in dict_entities_per_col[key]:
             
-            #it includes compatibility with sparql types and predicate strategy
-            types_lookup = smartlookup.getTypesForEntity(entity, KG.DBpedia)
-            
-            #TODO
-            ##get more specific types
-            #check pairwise if x is sub of y
-            #it may be the case that they are 2 different branches
-            #Make it more optimal... if y was super class then we do not need to check it-> add it to no_leafs, leafs if survives the round
-            specific_types = getMostSpecificClass(dbpedia_ontology, types_lookup)
+            #Check first if available in index
+            if entity in dict_index_types:
+                specific_types = dict_index_types[entity]
+            else:
+                #it includes compatibility with sparql types and predicate strategy
+                types_lookup = smartlookup.getTypesForEntity(entity, KG.DBpedia)
+                
+                #TODO
+                ##get more specific types
+                #check pairwise if x is sub of y
+                #it may be the case that they are 2 different branches
+                #Make it more optimal... if y was super class then we do not need to check it-> add it to no_leafs, leafs if survives the round
+                specific_types = getMostSpecificClass(dbpedia_ontology, types_lookup)
+                
+                dict_index_types[entity]=set()
+                dict_index_types[entity].update(specific_types)
+                
             
             for stype in specific_types:
                 
@@ -91,6 +117,10 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2):
     #print(dict_types_per_col)
     f_cta_1_out = open(file_cta_1,"w+")
     f_cta_2_out = open(file_cta_2,"w+")
+    f_cta_target = open(file_cta_target,"w+")
+    
+    
+    no_types=0
     
     for key in dict_types_per_col:
         
@@ -105,20 +135,41 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2):
             most_voted_type = getMostVotedType(dict_types_per_col[key])
             
             line_str = '\"%s\",\"%s\",\"%s\"' % (table_id, column_id, most_voted_type)
+            
+            line_str_target = '\"%s\",\"%s\"' % (table_id, column_id)
     
+            
+            f_cta_target.write(line_str_target+'\n')
+            
             f_cta_1_out.write(line_str+'\n')
             
-            ancestors = getFilteredTypes(dbpedia_ontology.getAncestorsURIsMinusClass(dbpedia_ontology.getClassByURI(most_voted_type)), KG.DBpedia)
+            cls_most_voted = dbpedia_ontology.getClassByURI(most_voted_type)
+            
+            if cls_most_voted==None: #safety check
+                ancestors = set()
+            else:
+                ancestors = getFilteredTypes(dbpedia_ontology.getAncestorsURIsMinusClass(cls_most_voted), KG.DBpedia)
             
             
-            for anc in ancestors:
-                line_str += ',\"'+ anc + '\"'
+            
+            #Store ancestors as "uri1 uri2 uri3"
+            #for anc in ancestors:
+            #    line_str += ',\"'+ anc + '\"'
+            line_str += ',\"' + " ".join(ancestors) + '\"'
+            
                 
             f_cta_2_out.write(line_str+'\n')
             
+        else:    
+            print("NO TYPES FOR "+ key)
+            no_types+=1
+    
+    
+    print("Number of cases without type: "+ str(no_types))
     
     f_cta_1_out.close()
     f_cta_2_out.close()
+    f_cta_target.close()
     
     
     
@@ -160,6 +211,11 @@ def getMostSpecificClass(ontology, types):
             class_i = ontology.getClassByURI(types_list[i])
             class_j = ontology.getClassByURI(types_list[j])
             
+            if class_i==None or class_j==None:
+                isSubClass=False
+                break
+                
+            
             if ontology.isSubClassOf(class_i, class_j):                
                 non_specific_classes.add(types_list[j])
             
@@ -183,7 +239,9 @@ def getMostSpecificClass(ontology, types):
 
 
 
-
+'''
+Not used
+'''
 def tablesToChallengeFormatPandas(folder_gt, folder_tables, file_out_gt):
     
     csv_file_names = [f for f in listdir(folder_gt) if isfile(join(folder_gt, f))]
@@ -243,6 +301,139 @@ def tablesToChallengeFormatPandas(folder_gt, folder_tables, file_out_gt):
 
 
 
+
+
+def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_redirects_gt, file_out_gt_target, max_rows):
+    #print(csv_file_name)
+        
+    f_out = open(file_out_gt,"a+")
+    f_out_redirects = open(file_out_redirects_gt,"a+")
+    f_out_target = open(file_out_gt_target,"a+")
+    
+    n_rows=0
+    panda_errors = 0
+    
+    dbpedia_ep = DBpediaEndpoint()
+        
+    table_id = ""
+        
+    dict_entities = dict()
+    
+    #init dict_entities with current state of file_out_redirects_gt
+    with open(file_gt) as csv_file_redirections:
+        
+        csv_reader = csv.reader(csv_file_redirections)
+        
+        #"1","0","1","http://dbpedia.org/resource/Uno_Von_Troil http://dbpedia.org/resource/Uno_von_Troil"
+        for row in csv_reader:
+            
+            entity_list = row[3].split(" ")
+            
+            for e in entity_list:
+                
+                if e not in dict_entities:                    
+                    dict_entities[e] = set(entity_list)
+            
+            
+        
+        
+        
+    with open(file_gt) as csv_file:
+                
+        csv_reader = csv.reader(csv_file)
+            
+        for row in csv_reader:
+                
+            #file, col, row, URI
+            #note that in Okties GT it is given file, row, col 
+            #1,1,0,http://dbpedia.org/resource/Uno_von_Troil
+            
+            if len(row) < 4:
+                continue
+                
+            entity_uri = row[3]
+            
+            if int(row[0])<1200:  #Jiaoyan starts from table file 1,200
+                continue
+            
+            if not table_id==row[0]:
+                table_id = row[0]
+                print(table_id)
+                
+                
+            col_id = row[2]#Reverse according to input
+            row_id = row[1]
+                
+            csv_file_name = table_id + ".csv"
+            
+            try:                
+                #Try to open with pandas. If error, then discard file
+                pd.read_csv(join(folder_tables, csv_file_name), sep=',', quotechar='"',escapechar="\\")    
+                #df = csv.reader(csv_file)
+            except:
+                panda_errors+=1
+                continue
+            
+            
+            entities=set()
+            
+            ##Keep and index to avoid unnecessary queries
+            if entity_uri in dict_entities:
+                entities.update(dict_entities[entity_uri])
+            else:
+                entities=set()
+                new_entities=set()
+                    
+                ##Consider redirects:
+                entities.update(dbpedia_ep.getWikiPageRedirect(entity_uri))
+                entities.update(dbpedia_ep.getWikiPageRedirectFrom(entity_uri))
+                
+                #two iterations    
+                for e in entities:
+                    new_entities.update(dbpedia_ep.getWikiPageRedirect(e))
+                    new_entities.update(dbpedia_ep.getWikiPageRedirectFrom(e))
+                    
+                
+                entities.add(entity_uri)
+                entities.update(new_entities)
+                
+                dict_entities[entity_uri] = set()
+                dict_entities[entity_uri].update(entities)
+            
+                
+            #Output
+            #“table id”, “column id”, “row id” and “DBPedia entity”
+            #“9206866_1_8114610355671172497”,”0”,”121”,”http://dbpedia.org/resource/Norway”
+            line_str = '\"%s\",\"%s\",\"%s\"' % (table_id, col_id, row_id)                
+            f_out_target.write(line_str+'\n')
+                    
+            #f_out.write('\"%s\",\"%s\",\"%s\",\"%s\"\n' % (table_id, column_id, row_id, entity_uri))
+                    
+            f_out.write(line_str+',\"%s\"\n' % entity_uri)
+                    
+                    
+            #for ent in entities:
+            #    line_str += ',\"'+ ent + '\"'
+            line_str += ',\"' + " ".join(entities) + '\"'
+                    
+            f_out_redirects.write(line_str+'\n')
+                    
+            
+        
+            ##Number of rows
+            if n_rows > max_rows: #200000        
+                break   
+            n_rows+=1
+        
+        
+        
+    print("Panda errors: %d" % panda_errors)    
+    f_out.close()
+    f_out_redirects.close()
+    f_out_target.close()
+    
+    
+    
 
 
 def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redirects_gt, file_out_gt_target, max_tables):
@@ -326,8 +517,10 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
                     f_out.write(line_str+',\"%s\"\n' % entity_uri)
                     
                     
-                    for ent in entities:
-                        line_str += ',\"'+ ent + '\"'
+                    #for ent in entities:
+                    #    line_str += ',\"'+ ent + '\"'
+                    line_str += ',\"' + " ".join(entities) + '\"'
+                    
                     f_out_redirects.write(line_str+'\n')
                     
                     
@@ -357,6 +550,9 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
         
 
 
+'''
+Not used
+'''
 def getColumnEntityMentionPandas(file, entity_mention):
     
     r=""
@@ -413,13 +609,90 @@ def getColumnEntityMention(file, entity_mention):
     
     csv_f.close()
     return -1
+          
+          
+          
+#To create a single filed with entities: "uri1 uri2 uri3"
+def modifyCEATask(file_cea, file_cea_out): 
+            
+    with open(file_cea) as csv_file:
+        
+        f_cea_out = open(file_cea_out,"w+")
+        
+        csv_reader = csv.reader(csv_file)
+        
+        for row in csv_reader:
+                
+            #table, column, row_id and entity
+            if len(row) < 4:
+                continue
+            
+            entities = set()
+            
+            for i in range(3,len(row)):
+                entities.add(row[i])
+            
+            
+            line_str = '\"%s\",\"%s\",\"%s\"' % (row[0], row[1], row[2])                
+            
                     
+            line_str += ',\"' + " ".join(entities) + '\"'
+                    
+            f_cea_out.write(line_str+'\n')
+            
+     
+        f_cea_out.close()       
+            
 
 
-#craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10.csv",
-#              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_10.csv",
-#              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_all_types_10.csv",)
 
+
+start_time = time.time()            
+                    
+#myList = ['a','b','c','d']
+#myList = list()
+#myString = " ".join(myList)
+#print('"'+myString+'"')
+
+#To have only 4 fiels instead of many depending on the number of GT entities
+#modifyCEATask(
+#    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10k_2.csv",
+#    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10k.csv")
+
+
+#CHANGE CEA GT.... with wikiredirects
+'''
+craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10k.csv",
+              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_10k.csv",
+              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_all_types_10k.csv",)
+'''
+
+'''
+craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CEA/gt_cea.csv",
+              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CTA/gt_cta.csv",
+              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CTA/gt_cta_all_types.csv",
+              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CTA/cta_task_target_columns.csv")
+'''
+
+
+####CEA
+#'''
+
+#JIAOYAN: to be changed with your path
+#You may need to create folder DEA inside gt
+base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/"
+
+
+extensionWithWikiRedirects(
+    base+"gt/cea_gt.csv",
+    base+"tables/",
+    base+"gt/CEA/gt_cea.csv",
+    base+"gt/CEA/gt_cea_wikiredirects.csv",
+    base+"gt/CEA/cea_task_target_cells.csv", 500000) #Max 378518
+#'''
+
+elapsed_time = time.time() - start_time
+print("Time: " + time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
     
 #tablesToChallengeFormat(
 #    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/entities_instance/csv/",
@@ -429,9 +702,11 @@ def getColumnEntityMention(file, entity_mention):
 #    )
 
 #We need to take into account redirections if any... There may be one or more equivalent entities
+'''
 tablesToChallengeFormat(
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/entities_instance/csv/",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/tables_instance/csv/",
-    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10k.csv",
-    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10k.csv",
+    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10.csv",
+    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10.csv",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10.csv", 10)
+'''

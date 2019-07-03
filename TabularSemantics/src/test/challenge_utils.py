@@ -320,7 +320,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
     dict_entities = dict()
     
     #init dict_entities with current state of file_out_redirects_gt
-    with open(file_gt) as csv_file_redirections:
+    with open(file_out_redirects_gt) as csv_file_redirections:
         
         csv_reader = csv.reader(csv_file_redirections)
         
@@ -353,7 +353,8 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
                 
             entity_uri = row[3]
             
-            if int(row[0])<1200:  #Jiaoyan starts from table file 1,200
+            if int(row[0])<1200: #Jiaoyan starts from table file 1,200
+            #if int(row[0])<587 or int(row[0])>=1200:  
                 continue
             
             if not table_id==row[0]:
@@ -710,3 +711,4 @@ tablesToChallengeFormat(
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10.csv",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10.csv", 10)
 '''
+    

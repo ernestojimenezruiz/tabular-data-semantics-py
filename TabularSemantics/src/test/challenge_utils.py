@@ -22,7 +22,7 @@ from ontology.onto_access import DBpediaOntology
 
 
 
-def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target):
+def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target, from_table, to_table):
     
     dict_entities_per_col=dict()
     dict_types_per_col=dict()
@@ -39,16 +39,21 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target):
             
         csv_reader = csv.reader(csv_file)
         
-        previous_key=""    
+        #previous_key=""    
         
         for row in csv_reader:
             
             #table, column, row_id and entity
             if len(row) < 4:
                 continue
+            
+            
+            if int(row[0])<=from_table or int(row[0])>to_table:
+                continue
+            
     
             key = row[0] + "-col-"+ row[1]
-            #The order coudl be arbitrary
+            #The order could be arbitrary
             #if previous_key!=key: #new table or column
             #    dict_entities_per_col[key] = set()
             #    previous_key = key
@@ -73,7 +78,23 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target):
     
     #Get types
     num=0
+    
+    no_types=0
+    
     for key in dict_entities_per_col:
+        
+        
+        #Open files here
+        #Get most voted type per column and print file
+        #File 1: single type
+        #File 2: type + ancestors
+        #print(dict_types_per_col)
+        f_cta_1_out = open(file_cta_1,"a+")
+        f_cta_2_out = open(file_cta_2,"a+")
+        f_cta_target = open(file_cta_target,"a+")
+        
+        
+        
         
         dict_types_per_col[key] = dict()
         
@@ -107,69 +128,59 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target):
                 else:
                     dict_types_per_col[key][stype]=1
                 
-    
-    
-    
-    
-    #Get most voted type per column and print file
-    #File 1: single type
-    #File 2: type + ancestors
-    #print(dict_types_per_col)
-    f_cta_1_out = open(file_cta_1,"w+")
-    f_cta_2_out = open(file_cta_2,"w+")
-    f_cta_target = open(file_cta_target,"w+")
-    
-    
-    no_types=0
-    
-    for key in dict_types_per_col:
-        
+            
+            
+        ##Analyze specific types and votes here
         if len(dict_types_per_col[key]): #There are some types
             
             key.split("-col-")
-            
+                
             table_id = key.split("-col-")[0]
             column_id = key.split("-col-")[1]
-            
-            
+                
+                
             most_voted_type = getMostVotedType(dict_types_per_col[key])
-            
+                
             line_str = '\"%s\",\"%s\",\"%s\"' % (table_id, column_id, most_voted_type)
-            
+                
             line_str_target = '\"%s\",\"%s\"' % (table_id, column_id)
-    
-            
+        
+                
             f_cta_target.write(line_str_target+'\n')
-            
+                
             f_cta_1_out.write(line_str+'\n')
-            
+                
             cls_most_voted = dbpedia_ontology.getClassByURI(most_voted_type)
-            
+                
             if cls_most_voted==None: #safety check
                 ancestors = set()
             else:
                 ancestors = getFilteredTypes(dbpedia_ontology.getAncestorsURIsMinusClass(cls_most_voted), KG.DBpedia)
-            
-            
-            
+                
             #Store ancestors as "uri1 uri2 uri3"
             #for anc in ancestors:
             #    line_str += ',\"'+ anc + '\"'
             line_str += ',\"' + " ".join(ancestors) + '\"'
-            
-                
+                    
             f_cta_2_out.write(line_str+'\n')
             
         else:    
             print("NO TYPES FOR "+ key)
             no_types+=1
+            
+    
+        #We close it for each column
+        f_cta_1_out.close()
+        f_cta_2_out.close()
+        f_cta_target.close()
+    
+    
+    #End iteration keys (table-col)        
+        
     
     
     print("Number of cases without type: "+ str(no_types))
     
-    f_cta_1_out.close()
-    f_cta_2_out.close()
-    f_cta_target.close()
     
     
     
@@ -353,7 +364,8 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
                 
             entity_uri = row[3]
             
-            if int(row[0])<1200: #Jiaoyan starts from table file 1,200
+            #if int(row[0])<1200: #Jiaoyan starts from table file 1,200
+            if int(row[0])<1913: #Jiaoyan starts from table file 1,200
             #if int(row[0])<587 or int(row[0])>=1200:  
                 continue
             
@@ -647,6 +659,80 @@ def modifyCEATask(file_cea, file_cea_out):
 
 
 
+def mergeFiles(files_in, file_out): 
+            
+    for f_in in files_in:
+        addTo(f_in, file_out)
+
+
+
+def addTo(file_in, file_out):
+    
+    f_out = open(file_out,"a+")
+    
+    
+    try:                
+        #Try to open with pandas. If error, then discard file
+        pd.read_csv(file_in, sep=',', quotechar='"',escapechar="\\")    
+        
+    except:
+        print("Panda error with: " + file_in)
+        
+    with open(file_in) as csv_file:
+        
+        csv_reader = csv.reader(csv_file)
+        
+        for row in csv_reader:
+                
+            #table, column, row_id and entity
+            if len(row) < 3:
+                continue
+        
+            if len(row) == 3:
+                line_str = '\"%s\",\"%s\",\"%s\"\n' % (row[0], row[1], row[2])
+            elif len(row) == 4:
+                line_str = '\"%s\",\"%s\",\"%s\",\"%s\"\n' % (row[0], row[1], row[2], row[3].replace("\"", "%22"))
+            
+            f_out.write(line_str)
+            
+     
+    f_out.close()       
+    
+    
+    try:                
+        #Try to open with pandas. If error, then discard file
+        pd.read_csv(file_out, sep=',', quotechar='"',escapechar="\\")    
+        
+    except:
+        print("Panda error with: " + file_out)
+                  
+
+
+'''
+base="/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CEA/"
+files = list()
+file_in_name="cea_task_target_cells.csv"
+files.append(base+"0_1200/"+ file_in_name)
+files.append(base+"1200_1930/"+ file_in_name)
+file_out=base+file_in_name
+mergeFiles(files, file_out)
+
+
+files = list()
+file_in_name="gt_cea.csv"
+files.append(base+"0_1200/"+ file_in_name)
+files.append(base+"1200_1930/"+ file_in_name)
+file_out=base+file_in_name
+mergeFiles(files, file_out)
+
+
+files = list()
+file_in_name="gt_cea_wikiredirects.csv"
+files.append(base+"0_1200/"+ file_in_name)
+files.append(base+"1200_1930/"+ file_in_name)
+file_out=base+file_in_name
+mergeFiles(files, file_out)
+'''
 
 start_time = time.time()            
                     
@@ -661,36 +747,37 @@ start_time = time.time()
 #    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10k.csv")
 
 
-#CHANGE CEA GT.... with wikiredirects
 '''
 craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10k.csv",
               "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_10k.csv",
               "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_all_types_10k.csv",)
-'''
 
 '''
-craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CEA/gt_cea.csv",
-              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CTA/gt_cta.csv",
-              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CTA/gt_cta_all_types.csv",
-              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CTA/cta_task_target_columns.csv")
-'''
+
+#JIAOYAN: to be changed with your path
+#You may need to create folder CEA inside gt
+base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/"
+
+####CTA
+
+craeteCTATask(base+"gt/CEA/gt_cea.csv",
+              base+"gt/CTA/gt_cta.csv",
+              base+"gt/CTA/gt_cta_all_types.csv",
+              #base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
+              base+"gt/CTA/cta_task_target_columns.csv", 1000, 1930) #jiaoyan
+
 
 
 ####CEA
-#'''
-
-#JIAOYAN: to be changed with your path
-#You may need to create folder DEA inside gt
-base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/"
-
-
+'''
 extensionWithWikiRedirects(
     base+"gt/cea_gt.csv",
     base+"tables/",
-    base+"gt/CEA/gt_cea.csv",
-    base+"gt/CEA/gt_cea_wikiredirects.csv",
-    base+"gt/CEA/cea_task_target_cells.csv", 500000) #Max 378518
-#'''
+    base+"gt/CEA/gt_cea_last.csv",
+    base+"gt/CEA/gt_cea_wikiredirects_last.csv",
+    base+"gt/CEA/cea_task_target_cells_last.csv", 500000) #Max 378518
+'''
+
 
 elapsed_time = time.time() - start_time
 print("Time: " + time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))

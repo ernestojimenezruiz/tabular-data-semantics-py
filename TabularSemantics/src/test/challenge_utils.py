@@ -755,7 +755,7 @@ craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Wikipedia
 '''
 
 #JIAOYAN: to be changed with your path
-#You may need to create folder CEA inside gt
+#You may need to create folders CEA and CTA inside gt
 base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/"
 
 ####CTA

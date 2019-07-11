@@ -393,8 +393,9 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             entity_uri = row[3].replace("\"", "%22")
             
             
-            if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
-            #if int(row[0])>=1000: #ernesto 
+            #if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
+            #if int(row[0])>=1000: #ernesto
+            if int(row[0])>=3: #ernesto 
             #if int(row[0])<587 or int(row[0])>=1000:  
                 continue
             
@@ -812,9 +813,9 @@ craeteCTATask(base+"gt/CEA/gt_cea.csv",
 extensionWithWikiRedirects(
     base+"gt/cea_gt.csv",
     base+"tables/",
-    base+"gt/CEA/gt_cea_last.csv",
-    base+"gt/CEA/gt_cea_wikiredirects_last.csv",
-    base+"gt/CEA/cea_task_target_cells_last.csv", 500000) #Max < 400,000
+    base+"gt/CEA/gt_cea.csv",
+    base+"gt/CEA/gt_cea_wikiredirects.csv",
+    base+"gt/CEA/cea_task_target_cells.csv", 500000) #Max < 400,000
 #'''
 
 

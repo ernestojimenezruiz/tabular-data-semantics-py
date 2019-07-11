@@ -330,6 +330,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
         
     dict_entities = dict()
     
+    #READ CURRENT CACHE
     #init dict_entities with current state of file_out_redirects_gt
     with open(file_out_redirects_gt) as csv_file_redirections:
         
@@ -361,17 +362,56 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             
             if len(row) < 4:
                 continue
-                
-            entity_uri = row[3]
             
-            #if int(row[0])<1200: #Jiaoyan starts from table file 1,200
-            if int(row[0])<1913: #Jiaoyan starts from table file 1,200
+            
+            #entity_uri = row[3]    
+            entity_uri = row[3].replace("\"", "%22")
+            
+            #To avoid cases from "http://sws.geonames.org/"
+            #if entity_uri.startswith("http://sws.geonames.org/"):
+            same_as_resources = set()
+            if not entity_uri.startswith("http://dbpedia.org/resource/"):
+                #print(getFilteredResources(dbpedia_ep.getSameEntities(entity_uri), KG.DBpedia))
+                same_as_resources = getFilteredResources(dbpedia_ep.getSameEntities(entity_uri), KG.DBpedia)                
+                #print(row[0])
+                #print(row[1])
+                #print(row[2])                               
+                #print(entity_uri)
+                
+                if len(same_as_resources)==0:
+                    print("No dbpedia entity for: %s, %s, %s, %s" % (row[0], row[1], row[2], entity_uri) )                    
+                else:
+                    #We keep only one of the same_as dbpedia resoruces
+                    for r in same_as_resources:
+                        entity_uri = r
+                    
+                #break
+            
+            entity_uri = row[3].replace("\"", "%22")
+            
+            
+            #if int(row[0])<1000: #Jiaoyan starts from table file 1,000
+            if int(row[0])>10:
+            #if int(row[0])>=100: 
             #if int(row[0])<587 or int(row[0])>=1200:  
                 continue
             
             if not table_id==row[0]:
+                
+                #Change of table we close and then reopen again to keep a better storage of intermediate points
+                f_out.close()
+                f_out_redirects.close()
+                f_out_target.close() 
+                
+                
                 table_id = row[0]
                 print(table_id)
+                
+                
+                f_out = open(file_out_gt,"a+")
+                f_out_redirects = open(file_out_redirects_gt,"a+")
+                f_out_target = open(file_out_gt_target,"a+")
+                
                 
                 
             col_id = row[2]#Reverse according to input
@@ -394,7 +434,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             if entity_uri in dict_entities:
                 entities.update(dict_entities[entity_uri])
             else:
-                entities=set()
+                #entities=set()
                 new_entities=set()
                     
                 ##Consider redirects:
@@ -409,6 +449,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
                 
                 entities.add(entity_uri)
                 entities.update(new_entities)
+                entities.update(same_as_resources) #in case there were more than one
                 
                 dict_entities[entity_uri] = set()
                 dict_entities[entity_uri].update(entities)
@@ -747,36 +788,30 @@ start_time = time.time()
 #    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10k.csv")
 
 
-'''
-craeteCTATask("/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10k.csv",
-              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_10k.csv",
-              "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CTA_Round2/ground_truth_cta_all_types_10k.csv",)
 
-'''
 
 #JIAOYAN: to be changed with your path
 #You may need to create folders CEA and CTA inside gt
-base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/"
+base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v8/"
 
 ####CTA
-
+'''
 craeteCTATask(base+"gt/CEA/gt_cea.csv",
               base+"gt/CTA/gt_cta.csv",
               base+"gt/CTA/gt_cta_all_types.csv",
-              #base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
-              base+"gt/CTA/cta_task_target_columns.csv", 1000, 1930) #jiaoyan
-
-
+              base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
+              #base+"gt/CTA/cta_task_target_columns.csv", 1000, 1930) #jiaoyan
+'''
 
 ####CEA
-'''
+#'''
 extensionWithWikiRedirects(
     base+"gt/cea_gt.csv",
     base+"tables/",
     base+"gt/CEA/gt_cea_last.csv",
     base+"gt/CEA/gt_cea_wikiredirects_last.csv",
-    base+"gt/CEA/cea_task_target_cells_last.csv", 500000) #Max 378518
-'''
+    base+"gt/CEA/cea_task_target_cells_last.csv", 500000) #Max < 400,000
+#'''
 
 
 elapsed_time = time.time() - start_time

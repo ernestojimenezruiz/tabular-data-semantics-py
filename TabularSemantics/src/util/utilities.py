@@ -28,14 +28,14 @@ def getFilteredTypes(set_types, kgfilter=KG.All):
             return filtered_types 
 
 
-def getFilteredResources(set_types, kgfilter=KG.All):
+def getFilteredResources(set_resources, kgfilter=KG.All):
         if kgfilter==KG.All:
-            return set_types
+            return set_resources
         else:
             kg_uri = URI_KG.uris_resource[kgfilter.value]
-            filtered_types = set()
-            for t in set_types:
-                if t.startswith(kg_uri):
-                    filtered_types.add(t)
+            filtered_resources = set()
+            for r in set_resources:
+                if r.startswith(kg_uri):
+                    filtered_resources.add(r)
             
-            return filtered_types 
+            return filtered_resources 

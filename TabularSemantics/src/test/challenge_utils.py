@@ -393,9 +393,9 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             entity_uri = row[3].replace("\"", "%22")
             
             
-            #if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
+            if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
             #if int(row[0])>=1000: #ernesto
-            if int(row[0])>=3: #ernesto 
+            #if int(row[0])>=3: #ernesto 
             #if int(row[0])<587 or int(row[0])>=1000:  
                 continue
             

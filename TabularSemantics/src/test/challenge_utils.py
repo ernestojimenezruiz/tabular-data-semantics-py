@@ -385,6 +385,9 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
                     for r in same_as_resources:
                         entity_uri = r
                     
+                    ##We will consider other same as later
+                    same_as_resources.remove(entity_uri)
+                    
                 #break
             
             entity_uri = row[3].replace("\"", "%22")
@@ -439,7 +442,9 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
                 ##Consider redirects:
                 entities.update(dbpedia_ep.getWikiPageRedirect(entity_uri))
                 entities.update(dbpedia_ep.getWikiPageRedirectFrom(entity_uri))
+                entities.update(same_as_resources) #in case there were more than one
                 
+                                                
                 #two iterations    
                 for e in entities:
                     new_entities.update(dbpedia_ep.getWikiPageRedirect(e))
@@ -448,7 +453,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
                 
                 entities.add(entity_uri)
                 entities.update(new_entities)
-                entities.update(same_as_resources) #in case there were more than one
+                
                 
                 dict_entities[entity_uri] = set()
                 dict_entities[entity_uri].update(entities)

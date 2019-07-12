@@ -18,7 +18,7 @@ import time
 from collections import OrderedDict
 from kg.endpoints import DBpediaEndpoint
 from ontology.onto_access import DBpediaOntology
-
+import shutil
 
 
 
@@ -393,8 +393,8 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             entity_uri = row[3].replace("\"", "%22")
             
             
-            if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
-            #if int(row[0])>=1000: #ernesto
+            #if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
+            if int(row[0])>=1000: #ernesto
             #if int(row[0])>=3: #ernesto 
             #if int(row[0])<587 or int(row[0])>=1000:  
                 continue
@@ -754,28 +754,50 @@ def addTo(file_in, file_out):
                   
 
 
+
+def selectTablesWikipedia():
+    folder_all = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/tables_instance/csv/"
+    folder_r2 = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/Tables_Round2/"
+    file_targets = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10k.csv"
+    
+    with open(file_targets) as csv_file:
+        
+        csv_reader = csv.reader(csv_file)
+        
+        for row in csv_reader:
+                
+            #table, column, row_id and entity
+            if len(row) < 3:
+                continue
+            
+            file_name = folder_all + row[0] + ".csv"
+            
+            shutil.copy2(file_name, folder_r2)
+            
+    
+
 '''
-base="/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v5/gt/CEA/"
+base="/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v8/gt/CEA/"
 files = list()
 file_in_name="cea_task_target_cells.csv"
-files.append(base+"0_1200/"+ file_in_name)
-files.append(base+"1200_1930/"+ file_in_name)
+files.append(base+"0_1000/"+ file_in_name)
+files.append(base+"1000_1923/"+ file_in_name)
 file_out=base+file_in_name
 mergeFiles(files, file_out)
 
 
 files = list()
 file_in_name="gt_cea.csv"
-files.append(base+"0_1200/"+ file_in_name)
-files.append(base+"1200_1930/"+ file_in_name)
+files.append(base+"0_1000/"+ file_in_name)
+files.append(base+"1000_1923/"+ file_in_name)
 file_out=base+file_in_name
 mergeFiles(files, file_out)
 
 
 files = list()
 file_in_name="gt_cea_wikiredirects.csv"
-files.append(base+"0_1200/"+ file_in_name)
-files.append(base+"1200_1930/"+ file_in_name)
+files.append(base+"0_1000/"+ file_in_name)
+files.append(base+"1000_1923/"+ file_in_name)
 file_out=base+file_in_name
 mergeFiles(files, file_out)
 '''
@@ -800,23 +822,27 @@ start_time = time.time()
 base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v8/"
 
 ####CTA
-'''
+#'''
 craeteCTATask(base+"gt/CEA/gt_cea.csv",
               base+"gt/CTA/gt_cta.csv",
               base+"gt/CTA/gt_cta_all_types.csv",
-              base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
-              #base+"gt/CTA/cta_task_target_columns.csv", 1000, 1930) #jiaoyan
-'''
+              #base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
+              base+"gt/CTA/cta_task_target_columns.csv", 1000, 1923) #jiaoyan
+#'''
 
 ####CEA
-#'''
+'''
 extensionWithWikiRedirects(
     base+"gt/cea_gt.csv",
     base+"tables/",
     base+"gt/CEA/gt_cea.csv",
     base+"gt/CEA/gt_cea_wikiredirects.csv",
     base+"gt/CEA/cea_task_target_cells.csv", 500000) #Max < 400,000
-#'''
+'''
+
+
+#SELECT tables wikipedia. Only suing a subset of 10k from 500k
+#selectTablesWikipedia()
 
 
 elapsed_time = time.time() - start_time
@@ -838,4 +864,7 @@ tablesToChallengeFormat(
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10.csv",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10.csv", 10)
 '''
+
+
+
     

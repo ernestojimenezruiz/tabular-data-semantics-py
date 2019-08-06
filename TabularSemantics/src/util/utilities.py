@@ -39,3 +39,44 @@ def getFilteredResources(set_resources, kgfilter=KG.All):
                     filtered_resources.add(r)
             
             return filtered_resources 
+        
+        
+def getEntityName(uri):
+    
+    if "#" in uri:
+        splits = uri.split("#")
+        if len(splits[1])>0:
+            return splits[1]
+        else:
+            return uri
+        
+    elif "/" in uri:
+        splits = uri.split("/")
+        
+        i = len(splits)
+        
+        if len(splits[i-1])>0:
+            return splits[i-1]
+        else:
+            return uri
+        
+    return uri
+        
+        
+        
+
+#print(getEntityName("http://dbpedia.org/ontology/Lake"))
+#print(getEntityName("http://dbpedia.org/ontology#Lake"))
+#print(getEntityName("http://dbpedia.org/ontology/"))
+#print(getEntityName("http://dbpedia.org/ontology#"))  
+#print(getEntityName("#/kaka"))  
+        
+        
+        
+        
+        
+        
+        
+        
+    
+    

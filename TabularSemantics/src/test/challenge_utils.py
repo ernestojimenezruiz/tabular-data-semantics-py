@@ -37,7 +37,7 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target, from_table,
     #We need to group entities per table-col pair
     with open(file_cea) as csv_file:
             
-        csv_reader = csv.reader(csv_file)
+        csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
         
         #previous_key=""    
         
@@ -48,8 +48,8 @@ def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target, from_table,
                 continue
             
             
-            if int(row[0])<=from_table or int(row[0])>to_table:
-                continue
+            #if int(row[0])<=from_table or int(row[0])>to_table:
+            #    continue
             
     
             key = row[0] + "-col-"+ row[1]
@@ -334,7 +334,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
     #init dict_entities with current state of file_out_redirects_gt
     with open(file_out_redirects_gt) as csv_file_redirections:
         
-        csv_reader = csv.reader(csv_file_redirections)
+        csv_reader = csv.reader(csv_file_redirections, delimiter=',', quotechar='"', escapechar="\\")
         
         #"1","0","1","http://dbpedia.org/resource/Uno_Von_Troil http://dbpedia.org/resource/Uno_von_Troil"
         for row in csv_reader:
@@ -352,7 +352,7 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
         
     with open(file_gt) as csv_file:
                 
-        csv_reader = csv.reader(csv_file)
+        csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
             
         for row in csv_reader:
                 
@@ -497,7 +497,10 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
 
 def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redirects_gt, file_out_gt_target, max_tables):
     
-    csv_file_names = [f for f in listdir(folder_gt) if isfile(join(folder_gt, f))]
+    #csv_file_names = [f for f in listdir(folder_gt) if isfile(join(folder_gt, f))]
+    
+    csv_file_names = []
+    csv_file_names.append("2014_Tour_of_Turkey#6.csv")
     
     
     
@@ -531,7 +534,7 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
             
             table_id = csv_file_name.replace(".csv", "")
             
-            csv_reader = csv.reader(csv_file)
+            csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
             
             for row in csv_reader:
                 
@@ -552,16 +555,16 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
                 new_entities=set()
                 
                 ##Consider redirects:
-                entities.update(dbpedia_ep.getWikiPageRedirect(entity_uri))
-                entities.update(dbpedia_ep.getWikiPageRedirectFrom(entity_uri))
+                #entities.update(dbpedia_ep.getWikiPageRedirect(entity_uri))
+                #entities.update(dbpedia_ep.getWikiPageRedirectFrom(entity_uri))
                 
-                for e in entities:
-                    new_entities.update(dbpedia_ep.getWikiPageRedirect(e))
-                    new_entities.update(dbpedia_ep.getWikiPageRedirectFrom(e))
+                #for e in entities:
+                #    new_entities.update(dbpedia_ep.getWikiPageRedirect(e))
+                #    new_entities.update(dbpedia_ep.getWikiPageRedirectFrom(e))
                 
                 
                 entities.add(entity_uri)
-                entities.update(new_entities)
+                #entities.update(new_entities)
                 
                 if column_id >= 0:
                     #Output
@@ -626,7 +629,10 @@ def getColumnEntityMentionPandas(file, entity_mention):
             
         #row_count+=1
             
+      
+            
         for i in range(len(row)):
+            
             if row[i].replace("\"", "")==entity_mention.replace("\"", ""):
                 del df
                 return i
@@ -648,11 +654,15 @@ def getColumnEntityMention(file, entity_mention):
     
     csv_f = open(file)
             
-    csv_reader = csv.reader(csv_f)
+    csv_reader = csv.reader(csv_f, delimiter=',', quotechar='"', escapechar="\\")
             
     for row in csv_reader:
             
         #row_count+=1
+        
+        print(row)
+        print(range(len(row)))
+        
             
         for i in range(len(row)):
             if row[i].replace("\"", "")==entity_mention.replace("\"", ""):
@@ -678,7 +688,7 @@ def modifyCEATask(file_cea, file_cea_out):
         
         f_cea_out = open(file_cea_out,"w+")
         
-        csv_reader = csv.reader(csv_file)
+        csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
         
         for row in csv_reader:
                 
@@ -705,102 +715,7 @@ def modifyCEATask(file_cea, file_cea_out):
 
 
 
-def mergeFiles(files_in, file_out): 
-            
-    for f_in in files_in:
-        addTo(f_in, file_out)
-
-
-
-def addTo(file_in, file_out):
-    
-    f_out = open(file_out,"a+")
-    
-    
-    try:                
-        #Try to open with pandas. If error, then discard file
-        pd.read_csv(file_in, sep=',', quotechar='"',escapechar="\\")    
-        
-    except:
-        print("Panda error with: " + file_in)
-        
-    with open(file_in) as csv_file:
-        
-        csv_reader = csv.reader(csv_file)
-        
-        for row in csv_reader:
-                
-            #table, column, row_id and entity
-            if len(row) < 3:
-                continue
-        
-            if len(row) == 3:
-                line_str = '\"%s\",\"%s\",\"%s\"\n' % (row[0], row[1], row[2])
-            elif len(row) == 4:
-                line_str = '\"%s\",\"%s\",\"%s\",\"%s\"\n' % (row[0], row[1], row[2], row[3].replace("\"", "%22"))
-            
-            f_out.write(line_str)
-            
-     
-    f_out.close()       
-    
-    
-    try:                
-        #Try to open with pandas. If error, then discard file
-        pd.read_csv(file_out, sep=',', quotechar='"',escapechar="\\")    
-        
-    except:
-        print("Panda error with: " + file_out)
-                  
-
-
-
-def selectTablesWikipedia():
-    folder_all = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/tables_instance/csv/"
-    folder_r2 = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/Tables_Round2/"
-    file_targets = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10k.csv"
-    
-    with open(file_targets) as csv_file:
-        
-        csv_reader = csv.reader(csv_file)
-        
-        for row in csv_reader:
-                
-            #table, column, row_id and entity
-            if len(row) < 3:
-                continue
-            
-            file_name = folder_all + row[0] + ".csv"
-            
-            shutil.copy2(file_name, folder_r2)
-            
-    
-
-'''
-base="/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v8/gt/CEA/"
-files = list()
-file_in_name="cea_task_target_cells.csv"
-files.append(base+"0_1000/"+ file_in_name)
-files.append(base+"1000_1923/"+ file_in_name)
-file_out=base+file_in_name
-mergeFiles(files, file_out)
-
-
-files = list()
-file_in_name="gt_cea.csv"
-files.append(base+"0_1000/"+ file_in_name)
-files.append(base+"1000_1923/"+ file_in_name)
-file_out=base+file_in_name
-mergeFiles(files, file_out)
-
-
-files = list()
-file_in_name="gt_cea_wikiredirects.csv"
-files.append(base+"0_1000/"+ file_in_name)
-files.append(base+"1000_1923/"+ file_in_name)
-file_out=base+file_in_name
-mergeFiles(files, file_out)
-'''
+         
 
 start_time = time.time()            
                     
@@ -822,13 +737,21 @@ start_time = time.time()
 base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v8/"
 
 ####CTA
-#'''
+'''
 craeteCTATask(base+"gt/CEA/gt_cea.csv",
               base+"gt/CTA/gt_cta.csv",
               base+"gt/CTA/gt_cta_all_types.csv",
-              #base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
-              base+"gt/CTA/cta_task_target_columns.csv", 1000, 1923) #jiaoyan
-#'''
+              base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
+              #base+"gt/CTA/cta_task_target_columns.csv", 1000, 1923) #jiaoyan
+'''
+
+base= "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
+
+craeteCTATask(base+"CEA_Round1_gt.csv",
+              base+"CTA_Round1_gt_for_CEA.csv",
+              base+"CTA_Round1_gt_for_CEA_all_types.gt",
+              base+"CTA_Round1_targets_for_CEA.csv", 0, 1000)
+
 
 ####CEA
 '''
@@ -841,13 +764,9 @@ extensionWithWikiRedirects(
 '''
 
 
-#SELECT tables wikipedia. Only suing a subset of 10k from 500k
-#selectTablesWikipedia()
 
 
-elapsed_time = time.time() - start_time
-print("Time: " + time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
-    
+
 #tablesToChallengeFormat(
 #    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/entities_instance/csv/",
 #    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/tables_instance/csv/",
@@ -860,11 +779,18 @@ print("Time: " + time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 tablesToChallengeFormat(
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/entities_instance/csv/",
     "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/tables_instance/csv/",
-    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_10.csv",
-    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_10.csv",
-    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_10.csv", 10)
+    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_x.csv",
+    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/ground_truth_cea_wikiredirects_x.csv",
+    "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/WikipediaDataset/WikipediaGS/CEA_Round2/cea_task_target_cells_x.csv", 1)
 '''
 
 
+
+
+
+
+elapsed_time = time.time() - start_time
+print("Time: " + time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+    
 
     

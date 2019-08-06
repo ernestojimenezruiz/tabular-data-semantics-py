@@ -38,11 +38,25 @@ class URI_KG(object):
     avoid_predicates.add("http://dbpedia.org/ontology/wikiPageDisambiguates")
     avoid_predicates.add("http://dbpedia.org/ontology/wikiPageRedirects")
     avoid_predicates.add("http://dbpedia.org/ontology/wikiPageWikiLink")
+    avoid_predicates.add("http://dbpedia.org/ontology/wikiPageID")
+    
+    
+    #Large amount of text
+    avoid_predicates.add("http://dbpedia.org/ontology/abstract")
+    avoid_predicates.add("http://www.w3.org/2000/01/rdf-schema#comment")
+    
+    
+    
+    
+    avoid_predicates.add("http://dbpedia.org/ontology/wikiPageRevisionID")
+    avoid_predicates.add("http://dbpedia.org/ontology/wikiPageExternalLink")
+    avoid_predicates.add("http://purl.org/dc/terms/subject") #Link to categories
+    
     avoid_predicates.add("http://www.w3.org/2000/01/rdf-schema#seeAlso")
     avoid_predicates.add("http://purl.org/linguistics/gold/hypernym")
     avoid_predicates.add("http://xmlns.com/foaf/0.1/primaryTopic")
-    avoid_predicates.add("http://www.w3.org/2002/07/owl#differentFrom")
-    avoid_predicates.add("http://www.w3.org/2002/07/owl#sameAs")
+    #avoid_predicates.add("http://www.w3.org/2002/07/owl#differentFrom")
+    #avoid_predicates.add("http://www.w3.org/2002/07/owl#sameAs")
     avoid_predicates.add("http://dbpedia.org/property/related")
     
     

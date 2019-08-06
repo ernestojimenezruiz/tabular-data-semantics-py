@@ -127,7 +127,10 @@ class SPARQLEndpoint(object):
         
         query = self.createSPARQLQueryTriplesForSubject(subject_entity, limit)
         
-        return self.getQueryResultsArityTwo(query)
+        #print(query)        
+        #print(self.getQueryResultsArityTwo(query, False, False))
+        
+        return self.getQueryResultsArityTwo(query, False, False)
         
         
     def getTriplesForObject(self, obj_entity, limit=1000):
@@ -239,12 +242,14 @@ class SPARQLEndpoint(object):
         
         props_to_filter=""
         for p in URI_KG.avoid_predicates:
-            props_to_filter+="<" + p + ">," 
+            props_to_filter+="<" + p + ">,"
+            #props_to_filter+= p + ", " 
         props_to_filter = props_to_filter[0:len(props_to_filter)-1]
         
         #props_to_filter = ",".join(URI_KG.avoid_predicates)
         
-        return "SELECT DISTINCT ?outA ?outB WHERE { <" + subject + "> ?outA ?outB . FILTER( ?outB NOT IN("+ props_to_filter+")) } limit " + str(limit)
+        return "SELECT DISTINCT ?outA ?outB WHERE { <" + subject + "> ?outA ?outB  FILTER( ?outA NOT IN("+ props_to_filter+")) } limit " + str(limit)
+        #return "SELECT DISTINCT ?outA ?outB WHERE { <" + subject + "> ?outA ?outB . } limit " + str(limit)
     
     
     def createSPARQLQueryPredicatesForSubject(self, subject, limit=1000):

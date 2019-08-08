@@ -78,6 +78,14 @@ class TabularToRDF(object):
     def setUpRDFGraph(self):
         self.rdfgraph = Graph()
         self.rdfgraph.bind(TabularToRDF.NAMESPACE_PREFIX, TabularToRDF.BASE_URI)
+        
+        
+        
+        self.rdfgraph.add( (URIRef(TabularToRDF.BASE_URI+"column"), RDF.type, URIRef(OWL.OWLANNOTATIONPROPERTY)) )
+        self.rdfgraph.add( (URIRef(TabularToRDF.BASE_URI+"row"), RDF.type, URIRef(OWL.OWLANNOTATIONPROPERTY)) )
+        
+        
+        
     
     
     def saveRDFGrah(self, rdf_file_ouput):
@@ -147,6 +155,8 @@ class TabularToRDF(object):
                 
                 
             if not cls_type=="":
+                self.rdfgraph.add( (URIRef(self.BASE_URI+cls_type), URIRef(RDFS.LABEL), Literal(cls_type)) )
+                self.rdfgraph.add( (URIRef(self.BASE_URI+cls_type), RDF.type, URIRef(OWL.OWLCLASS)) )
                 self.rdfgraph.add( (URIRef(e_uri), RDF.type, URIRef(self.BASE_URI+cls_type)) )
         
         except:
@@ -158,9 +168,10 @@ class TabularToRDF(object):
     
     def createRoleAssertions(self, e_uri, row, list_property_uris):
         
-        #At this stage we condider all as Literals
+        #At this stage we consider all as Literals
         for i in range(len(list_property_uris)):
-            self.rdfgraph.add( (URIRef(e_uri), URIRef(list_property_uris[i]), Literal(row[i])) )
+            if len(row[i])>0:
+                self.rdfgraph.add( (URIRef(e_uri), URIRef(list_property_uris[i]), Literal(row[i])) )
             
             
     
@@ -238,25 +249,27 @@ class TabularToRDF(object):
     
     
     
+ch_round=2
 
-
-#ROUND 1    
-folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
-folder_cea_tables=folder+"CEA_Round1/"
-folder_cea_tables_rdf=folder+"CEA_RDF_tables_r1/"
-tabular2rdf = TabularToRDF(folder + "CEA_Round1_Targets.csv", folder+"CTA_Round1_gt_for_CEA.csv")
-
+#ROUND 1
+if ch_round==1:    
+    folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
+    folder_cea_tables=folder+"CEA_Round1/"
+    folder_cea_tables_rdf=folder+"CEA_RDF_tables_r1/"
+    tabular2rdf = TabularToRDF(folder + "CEA_Round1_Targets.csv", folder+"CTA_Round1_gt_for_CEA.csv")
 
 #ROUND 2
-#folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round2/"
-#folder_cea_tables=folder+"Tables/"
-#folder_cea_tables_rdf=folder+"CEA_RDF_tables_r2/"
-#tabular2rdf = TabularToRDF(folder + "CEA_Round2_Targets.csv", folder+"CTA_Round2_GT.csv")    
+else:
+    folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round2/"
+    folder_cea_tables=folder+"Tables/"
+    folder_cea_tables_rdf=folder+"CEA_RDF_tables_r2/"
+    tabular2rdf = TabularToRDF(folder + "CEA_Round2_Targets.csv", folder+"CTA_Round2_GT.csv")    
 
 
 csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
 
 
+create_type = False
 
 for csv_file in csv_file_names:
     
@@ -266,7 +279,9 @@ for csv_file in csv_file_names:
     rdf_file_ouput = join(folder_cea_tables_rdf, table_name) + ".ttl"
     #print(rdf_file_ouput)
     
-    tabular2rdf.ConvertTableToRDF(join(folder_cea_tables, csv_file), table_name, has_header, rdf_file_ouput, True)
+    
+    
+    tabular2rdf.ConvertTableToRDF(join(folder_cea_tables, csv_file), table_name, has_header, rdf_file_ouput, create_type)
     
     
         

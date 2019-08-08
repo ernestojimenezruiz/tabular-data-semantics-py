@@ -8,6 +8,9 @@ from rdflib import Graph, URIRef, BNode, Literal, term
 from rdflib.namespace import RDF
 from constants import RDFS, OWL
 
+import unicodedata
+
+
 import csv
 import pandas as pd
 
@@ -15,10 +18,12 @@ from os import listdir
 from os.path import isfile, join
 from util import utilities
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 
 from kg.endpoints import DBpediaEndpoint
+from kg.lookup import DBpediaLookup
+from kg.entity import KG, KGEntity
 
 
 class DBPediaExtractor(object):
@@ -41,11 +46,35 @@ class DBPediaExtractor(object):
         self.types = set()
         
         
-        self.dbp_endpoint = DBpediaEndpoint()
+        self.dbp_endpoint = DBpediaEndpoint()        
+        self.lookup = DBpediaLookup()
+        
+        
     
     
     def isValidURI(self, str_uri):
-        return term._is_valid_uri(str_uri)
+        
+        #use term._is_valid_unicode(str_uri)
+        
+        return term._is_valid_uri(str_uri) and self.isascii(str_uri)
+    
+    def isascii(self, string_original):
+        
+        string = self.strip_accents(string_original)  #to ignore accents 
+            
+        return len(string_original) == len(string.encode())
+    
+    
+    
+    def strip_accents(self, text):
+            
+        text = unicodedata.normalize('NFD', text)\
+               .encode('ascii', 'ignore')\
+               .decode("utf-8")
+    
+        return str(text)    
+    
+    
     
     def setUpRDFGraph(self):
         self.rdfgraph = Graph()
@@ -102,8 +131,89 @@ class DBPediaExtractor(object):
                     print("Not valid URI:", ent)
                 
             print("Number of entities: " + str(len(self.entities)))
+    
+    
+    
+    
+    def getTargetColumns(self, cea_gt_file):
+        
+        self.target_column = dict()
+               
+        #An alternative is to automatically identify the left most column with an entity mention.
+        #In this particular case we know the target
+        with open(cea_gt_file) as csv_file:
+            
+            csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
+                        
+            for row in csv_reader:
                 
+                if row[0] not in self.target_column or int(self.target_column[row[0]]) > int(row[1]):
+                    self.target_column[row[0]] = row[1] 
+                    
+                    
+                    
+    
+    def getEntitiesLookup(self, folder_cea_tables, cea_gt_file):
                 
+        #Lookup call for each cell in target column
+        
+        
+        #Dictionary or cache to avoid repeated look-up
+        visited_values = set() 
+        
+        
+        #Get Target column
+        self.getTargetColumns(cea_gt_file)
+        
+        csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
+
+        for csv_file in csv_file_names:
+            
+            table_name = csv_file.replace(".csv", "")
+            
+            with open(join(folder_cea_tables, csv_file)) as csv_file:
+            
+                csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
+                
+                if table_name in self.target_column:
+                    target_column = self.target_column[table_name]
+                else: #End
+                    continue
+                    
+                for row in csv_reader:
+                    if len(row)<int(target_column):
+                        continue
+                    
+                    if row[int(target_column)] not in visited_values:
+                        
+                        ##To avoid repetition
+                        visited_values.add(row[int(target_column)])
+                               
+                        #Lookup top-3
+                        dbpedia_entities = self.lookup.getKGEntities(row[int(target_column)], 3, '')
+                        for ent in dbpedia_entities:
+                            
+                            if self.isValidURI(ent.getId()):
+                                self.entities.add(ent.getId()) ##Add to entities to extract neighbours
+                                
+                                e_uri = URIRef(ent.getId())
+                                self.rdfgraph.add( (e_uri, RDF.type, URIRef(OWL.NAMEDINDIVIDUAL)) )
+                                
+                                for cls_type in ent.getTypes(KG.DBpedia):
+                                    self.rdfgraph.add( (e_uri, RDF.type, URIRef(cls_type)) )
+                                
+                            else:
+                                print("Not valid URI:", ent)
+                            
+                            
+                            
+                            
+                            
+                    
+        
+        print("Number of extended entities with look-up: " + str(len(self.entities)))
+        
+                    
             
     
     
@@ -155,24 +265,29 @@ class DBPediaExtractor(object):
                 for prop in dict_results:
                     
                     #if prop.startswith("http://dbpedia.org/"):
-                    
-                        p_uri = URIRef(prop)
                         
-                        for obj in dict_results[prop]:
+                        if self.isValidURI(prop):
+                        
+                            p_uri = URIRef(prop)
                             
-                            #Triple to resource
-                            if obj.startswith("http"):
-                                
-                                if obj.startswith("http://dbpedia.org/resource/"):
-                                
-                                    if self.isValidURI(obj):                                
-                                        o_uri = URIRef(obj)                                
-                                        self.rdfgraph.add( (e_uri, p_uri, o_uri) )
-                                    else:
-                                        print("Not valid URI:", ent)
                             
-                            else: #Triple to Literal                            
-                                self.rdfgraph.add( (e_uri, p_uri, Literal(obj)) )
+                            for obj in dict_results[prop]:
+                                
+                                #Triple to resource
+                                if obj.startswith("http"):
+                                    
+                                    if obj.startswith("http://dbpedia.org/resource/"):
+                                    
+                                        if self.isValidURI(obj):                                
+                                            o_uri = URIRef(obj)                                
+                                            self.rdfgraph.add( (e_uri, p_uri, o_uri) )
+                                        else:
+                                            print("Not valid URI:", ent)
+                                
+                                else: #Triple to Literal                            
+                                    self.rdfgraph.add( (e_uri, p_uri, Literal(obj)) )
+                        else:
+                            print("Not valid URI:", prop)
             else:
                 print("Not valid URI:", ent)
                     
@@ -208,21 +323,30 @@ class DBPediaExtractor(object):
                     print("Not valid URI:", ent)
         
         
-        print("Number of extended entities: " + str(len(self.entities)))
+        print("Number of extended entities with types: " + str(len(self.entities)))
                   
 
 
+
+
+
+
 #Round 1
-folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
-cea_gt = folder + "CEA_Round1_gt.csv"
-cta_gt = folder + "CTA_Round1_gt_for_CEA.csv"
-out_ttl = folder + "dbpedia_round1.ttl"
+ch_round=1
+if ch_round==1:
+    folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
+    folder_cea_tables=folder+"CEA_Round1/"
+    cea_gt = folder + "CEA_Round1_gt.csv"
+    cta_gt = folder + "CTA_Round1_gt_for_CEA.csv"
+    out_ttl = folder + "dbpedia_round1.ttl"
 
 #Round 2
-#folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round2/"
-#cea_gt = folder + "CEA/cea_gt.csv"
-#cta_gt = folder + "CTA/cta_gt.csv"
-#out_ttl = folder + "dbpedia_round2.ttl"
+else:
+    folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round2/"
+    folder_cea_tables=folder+"Tables/"
+    cea_gt = folder + "CEA/cea_gt.csv"
+    cta_gt = folder + "CTA/cta_gt.csv"
+    out_ttl = folder + "dbpedia_round2.ttl"
 
 
 
@@ -233,21 +357,37 @@ out_ttl = folder + "dbpedia_round1.ttl"
 #print(URIRef("http://dbpedia.org/resource/Sa`d_ibn_Abi_Waqqas"))
 #print(term._is_valid_uri("http://dbpedia.org/resource/Sa`d_ibn_Abi_Waqqas"))
 #print(URIRef("111"))
-        
+
 
 extractor = DBPediaExtractor()
+        
+#'''
+str1 = "NEC_µPD780C"
+str1= "http://dbpedia.org/resource/Theorell,_Axel_Húgo_Teodor"
+str1= "http://dbpedia.org/resource/Hall_&_Oates_(a)"
+#str1 = "♥O◘♦♥O◘♦"
+#str2 = "Python"
+print(extractor.isValidURI(str1))
+#print(extractor.isValidURI(str))
+#print(quote(str))
+print(extractor.strip_accents(str1))
+
+'''
 
 extractor.setUpRDFGraph()
 
-extractor.getEntities(cea_gt) #create entity definitions
+extractor.getEntities(cea_gt) #create entity definitions from GT
 
 extractor.getTypes(cta_gt) #From CSV
 extractor.getInstancesForTypes()  #From endpoint + create triples
+
+extractor.getEntitiesLookup(folder_cea_tables, cea_gt) #look up for cells in tables
+
 
 extractor.getAssertionsForInstances() #create subset of neighbourhood triples
 
 
 extractor.saveRDFGrah(out_ttl)
-    
+''' 
         
         

@@ -6,6 +6,8 @@ Created on 23 Jul 2019
 
 OWLDATAPROPERTY = "http://www.w3.org/2002/07/owl#DatatypeProperty"
 
+OWLOBJECTPROPERTY = "http://www.w3.org/2002/07/owl#ObjectProperty"
+
 OWLCLASS = "http://www.w3.org/2002/07/owl#Class"
 
 OWLANNOTATIONPROPERTY = "http://www.w3.org/2002/07/owl#AnnotationProperty"

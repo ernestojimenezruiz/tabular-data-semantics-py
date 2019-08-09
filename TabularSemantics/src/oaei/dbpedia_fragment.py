@@ -6,6 +6,8 @@ Created on 1 Aug 2019
 
 from rdflib import Graph, URIRef, BNode, Literal, term
 from rdflib.namespace import RDF
+from rdflib.plugins.sparql import prepareQuery
+
 from constants import RDFS, OWL
 
 import unicodedata
@@ -19,6 +21,7 @@ from os.path import isfile, join
 from util import utilities
 import os
 from urllib.parse import urlparse, quote
+
 
 
 from kg.endpoints import DBpediaEndpoint
@@ -44,10 +47,14 @@ class DBPediaExtractor(object):
         #self.setUpRDFGraph()
         self.entities = set()
         self.types = set()
+        #prop: True -> isObjectProperty
+        self.propertyType = dict()
         
         
         self.dbp_endpoint = DBpediaEndpoint()        
         self.lookup = DBpediaLookup()
+        
+        
         
         
     
@@ -57,6 +64,7 @@ class DBPediaExtractor(object):
         #use term._is_valid_unicode(str_uri)
         
         return term._is_valid_uri(str_uri) and self.isascii(str_uri)
+    
     
     def isascii(self, string_original):
         
@@ -118,7 +126,8 @@ class DBPediaExtractor(object):
                         e_uri2 = URIRef(uris[i])
                         self.rdfgraph.add( (e_uri1, URIRef(OWL.SAMEAS), e_uri2) )
                     else:
-                        print("Not valid URI?", uris[0], uris[i])
+                        pass
+                        #print("Not valid URI?", uris[0], uris[i])
                     i+=1
                     
                     
@@ -128,7 +137,8 @@ class DBPediaExtractor(object):
                     e_uri = URIRef(ent)
                     self.rdfgraph.add( (e_uri, RDF.type, URIRef(OWL.NAMEDINDIVIDUAL)) )
                 else:
-                    print("Not valid URI:", ent)
+                    pass
+                    #print("Not valid URI:", ent)
                 
             print("Number of entities: " + str(len(self.entities)))
     
@@ -166,8 +176,17 @@ class DBPediaExtractor(object):
         self.getTargetColumns(cea_gt_file)
         
         csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
+        
+        i=0
+        n=len(csv_file_names)
+        t=[1, 5, 10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000]
 
         for csv_file in csv_file_names:
+            
+            i+=1
+            
+            if i in t:
+                print("Getting look up entities for table %s of %s." % (i, n))
             
             table_name = csv_file.replace(".csv", "")
             
@@ -181,7 +200,7 @@ class DBPediaExtractor(object):
                     continue
                     
                 for row in csv_reader:
-                    if len(row)<int(target_column):
+                    if len(row)<=int(target_column): 
                         continue
                     
                     if row[int(target_column)] not in visited_values:
@@ -203,7 +222,8 @@ class DBPediaExtractor(object):
                                     self.rdfgraph.add( (e_uri, RDF.type, URIRef(cls_type)) )
                                 
                             else:
-                                print("Not valid URI:", ent)
+                                #print("Not valid URI:", ent.getId())
+                                pass
                             
                             
                             
@@ -264,17 +284,19 @@ class DBPediaExtractor(object):
                 
                 for prop in dict_results:
                     
-                    #if prop.startswith("http://dbpedia.org/"):
+                    #if prop.startswith("http://dbpedia.org/"): #There are othe rinteresting properties: rdfs:labels, rdf:type, fiar:nameetc
                         
                         if self.isValidURI(prop):
                         
                             p_uri = URIRef(prop)
                             
+                            isObjectProperty = self.identifyTypeOfProperty(prop)
+                            
                             
                             for obj in dict_results[prop]:
                                 
                                 #Triple to resource
-                                if obj.startswith("http"):
+                                if obj.startswith("http") and isObjectProperty:
                                     
                                     if obj.startswith("http://dbpedia.org/resource/"):
                                     
@@ -282,20 +304,50 @@ class DBPediaExtractor(object):
                                             o_uri = URIRef(obj)                                
                                             self.rdfgraph.add( (e_uri, p_uri, o_uri) )
                                         else:
-                                            print("Not valid URI:", ent)
+                                            #print("Not valid URI:", obj)
+                                            pass
                                 
-                                else: #Triple to Literal                            
+                                elif not isObjectProperty: #Triple to Literal                            
                                     self.rdfgraph.add( (e_uri, p_uri, Literal(obj)) )
+                                else:
+                                    #print("Wrong object '%s' for property '%s' (isObjectProperty=%s)" % (obj, prop, isObjectProperty) )
+                                    pass
                         else:
-                            print("Not valid URI:", prop)
+                            #print("Not valid URI:", prop)
+                            pass
             else:
-                print("Not valid URI:", ent)
+                pass
+                #print("Not valid URI:", ent)
                     
                     
                     
             
+    def identifyTypeOfProperty(self, prop):
+        
+        if prop in self.propertyType:
+            return self.propertyType[prop]
+        
+        #Get statistics from endpoint        
+        values = self.dbp_endpoint.getSomeValuesForPredicate(prop)
+        
+        n_values = len(values)
+        n_uris = 0
+        
+        for v in values:
+            if v.startswith("http"):
+                n_uris+=1
+        
+        isObjectProperty =  (n_uris > (n_values/2))
+        
+        if isObjectProperty:
+            self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLOBJECTPROPERTY)) )
+            self.propertyType[prop]=True                                                                    
+        else:
+            self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLDATAPROPERTY)) )
+            self.propertyType[prop]=False
             
         
+        return isObjectProperty
         
         
     
@@ -320,19 +372,84 @@ class DBPediaExtractor(object):
                     if cls.startswith("http://dbpedia.org/"):
                         self.rdfgraph.add( (e_uri, RDF.type, URIRef(cls)) )
                 else:
-                    print("Not valid URI:", ent)
+                    #print("Not valid URI:", ent)
+                    pass
         
         
         print("Number of extended entities with types: " + str(len(self.entities)))
                   
 
 
+    #Using pre-extracted ttl/cache
+    def localPropertyTypeExtractor(self, file_ttl):
+    
+        localrdfgraph = Graph()
+        localrdfgraph.parse(source=file_ttl, format='turtle')
+    
+        
+        query_str = "SELECT DISTINCT ?p  WHERE { ?s ?p ?o . } "
+        
+        query_object = prepareQuery(query_str)#, initNs={CMR_QA.NAMESPACE_PREFIX : CMR_QA.BASE_URI})
+        
+        predicates = localrdfgraph.query(query_object)
+        
+        print("Using %s local predicates" % (len(predicates)))
+        
+        for p in predicates:
+         
+            #print(p)
+            #continue
+            prop = str(p[0])
+            
+            #print(prop)
+            
+            if not prop.startswith("http://dbpedia.org/"):  
+                #we ignore other type of properties. Focus on dbpedia ones. 
+                #Others will be trreates as annotation (rdfs:label, foaf:name) or specially (rdf:type)
+                continue
+            
+        
+            query_str = "SELECT ?value WHERE { ?s <" + prop + "> ?value . } limit 100"
+            
+            #print(query_str)
+            #continue
+            #print("lalala")
+            
+            query_object = prepareQuery(query_str)#, initNs={CMR_QA.NAMESPACE_PREFIX : CMR_QA.BASE_URI})
+            
+            values = localrdfgraph.query(query_object)
+            
+            n_values = len(values)
+            n_uris = 0
+            
+            for v in values:
+                #print(v[0])
+                if str(v[0]).startswith("http"):
+                    n_uris+=1
+            
+            
+            if n_values==1:
+                isObjectProperty = (n_uris == n_values)
+            else:   
+                isObjectProperty = (n_uris > (n_values/2))
+            
+            #print("New: " + prop)
+            if isObjectProperty:                
+                self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLOBJECTPROPERTY)) )
+                self.propertyType[prop]=True                                                                    
+            else:
+                self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLDATAPROPERTY)) )
+                self.propertyType[prop]=False
+            
+            #print(prop, self.propertyType[prop])
+        
+
 
 
 
 
 #Round 1
-ch_round=1
+ch_round=2
 if ch_round==1:
     folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
     folder_cea_tables=folder+"CEA_Round1/"
@@ -361,20 +478,30 @@ else:
 
 extractor = DBPediaExtractor()
         
-#'''
+#
+'''
 str1 = "NEC_µPD780C"
 str1= "http://dbpedia.org/resource/Theorell,_Axel_Húgo_Teodor"
 str1= "http://dbpedia.org/resource/Hall_&_Oates_(a)"
 #str1 = "♥O◘♦♥O◘♦"
 #str2 = "Python"
+str1="http://dbpedia.org/resource/Win–loss_record_(pitching)"
+str1="http://dbpedia.org/resource/Win-loss_record_(pitching)"
+str1="http://dbpedia.org/resource/Chicago_White_Stockings_(1870–89)"
 print(extractor.isValidURI(str1))
 #print(extractor.isValidURI(str))
 #print(quote(str))
 print(extractor.strip_accents(str1))
+obj="1"
+prop="http://aaaa"
+isObjectProperty=True
+print("Wrong object '%s' for property '%s' (isObjectProperty=%s)" % (obj, prop, isObjectProperty) )
 
 '''
 
 extractor.setUpRDFGraph()
+extractor.localPropertyTypeExtractor(out_ttl)
+
 
 extractor.getEntities(cea_gt) #create entity definitions from GT
 
@@ -388,6 +515,6 @@ extractor.getAssertionsForInstances() #create subset of neighbourhood triples
 
 
 extractor.saveRDFGrah(out_ttl)
-''' 
+#''' 
         
         

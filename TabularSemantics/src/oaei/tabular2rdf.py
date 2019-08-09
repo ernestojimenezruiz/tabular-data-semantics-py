@@ -244,8 +244,8 @@ class TabularToRDF(object):
         
         
     
-    def ConvertTableToRDFWithTypes(self, gt):
-        pass
+    #def ConvertTableToRDFWithTypes(self, gt):
+    #    pass
     
     
     

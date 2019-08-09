@@ -138,6 +138,13 @@ class SPARQLEndpoint(object):
         query = self.createSPARQLQueryTriplesForObject(obj_entity, limit)
         
         return self.getQueryResultsArityTwo(query)    
+    
+    
+    def getSomeValuesForPredicate(self, predicate, limit=100):
+        
+        query = self.createSPARQLQuerySomeValuesForPredicate(predicate, limit)
+        
+        return self.getQueryResultsArityOne(query)    
         
         
         
@@ -264,6 +271,10 @@ class SPARQLEndpoint(object):
     
     def createSPARQLQueryRangeTypesOfPredicatesForObject(self, obj, limit=1000):
         return "SELECT DISTINCT ?uri WHERE { [] ?p <" + obj + "> . ?p rdfs:range ?uri . } limit " + str(limit)
+    
+    
+    def createSPARQLQuerySomeValuesForPredicate(self, predicate, limit=100):
+        return "SELECT DISTINCT ?uri WHERE { ?s <" + predicate + "> ?uri . } limit " + str(limit)
     
     
     

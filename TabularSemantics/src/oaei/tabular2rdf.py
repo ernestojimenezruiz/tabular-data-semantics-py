@@ -80,9 +80,10 @@ class TabularToRDF(object):
         self.rdfgraph.bind(TabularToRDF.NAMESPACE_PREFIX, TabularToRDF.BASE_URI)
         
         
-        
+        self.rdfgraph.add( (URIRef(TabularToRDF.BASE_URI+"table"), RDF.type, URIRef(OWL.OWLANNOTATIONPROPERTY)) )
         self.rdfgraph.add( (URIRef(TabularToRDF.BASE_URI+"column"), RDF.type, URIRef(OWL.OWLANNOTATIONPROPERTY)) )
         self.rdfgraph.add( (URIRef(TabularToRDF.BASE_URI+"row"), RDF.type, URIRef(OWL.OWLANNOTATIONPROPERTY)) )
+        
         
         
         
@@ -148,7 +149,7 @@ class TabularToRDF(object):
             
             self.rdfgraph.add( (URIRef(e_uri), URIRef(RDFS.LABEL), Literal(row[int(target_column)])) )
             
-            
+            self.rdfgraph.add( (URIRef(e_uri), URIRef(TabularToRDF.BASE_URI+"table"), Literal(table_name)) )
             self.rdfgraph.add( (URIRef(e_uri), URIRef(TabularToRDF.BASE_URI+"column"), Literal(target_column)) )
             self.rdfgraph.add( (URIRef(e_uri), URIRef(TabularToRDF.BASE_URI+"row"), Literal(num_row)) )
                 
@@ -241,15 +242,75 @@ class TabularToRDF(object):
         self.saveRDFGrah(rdf_file_ouput)
         
         
+    def ConvertTablesToRDF(self, table_name_input, table_name, has_header, create_type):
+        
+        
+              
+        with open(table_name_input) as csv_file:
+            
+            csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
+            
+            if table_name in self.main_column:
+                target_column = self.main_column[table_name]
+            else: #End
+                return
+                
+            if table_name in self.type_main_column:
+                type_target_column = self.type_main_column[table_name]
+            else:
+                type_target_column=""
+            
+            num_row = 0;
+            
+            for row in csv_reader:
+                
+                
+                
+                if num_row==0: #To keep the header if any
+                    
+                    list_property_uris = self.createPropertyURIs(table_name, row, has_header)
+                    
+                    size_header = len(row)
+                    
+                    if has_header:
+                        num_row+=1                        
+                        continue
+                
+                
+                #Wrong row
+                if len(row)<size_header:
+                    continue
+                
+                
+                
+                #create entity + type?
+                if create_type: 
+                    e_uri = self.createEntity(table_name, row, num_row, target_column, type_target_column)
+                else:
+                    e_uri = self.createEntity(table_name, row, num_row, target_column, "")
+                
+                    
+                    
+                
+                
+                
+                #Create role assertions
+                self.createRoleAssertions(e_uri, row, list_property_uris)
+                
+                
+                num_row+=1
+        
+        
+        
+        
+        
+        
         
         
     
-    #def ConvertTableToRDFWithTypes(self, gt):
-    #    pass
-    
-    
-    
+multiple_files=False    
 ch_round=2
+create_type = True
 
 #ROUND 1
 if ch_round==1:    
@@ -257,31 +318,40 @@ if ch_round==1:
     folder_cea_tables=folder+"CEA_Round1/"
     folder_cea_tables_rdf=folder+"CEA_RDF_tables_r1/"
     tabular2rdf = TabularToRDF(folder + "CEA_Round1_Targets.csv", folder+"CTA_Round1_gt_for_CEA.csv")
+    single_rdf_file_ouput=folder + "all_tables_round1.ttl"
 
 #ROUND 2
 else:
     folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round2/"
     folder_cea_tables=folder+"Tables/"
     folder_cea_tables_rdf=folder+"CEA_RDF_tables_r2/"
-    tabular2rdf = TabularToRDF(folder + "CEA_Round2_Targets.csv", folder+"CTA_Round2_GT.csv")    
+    tabular2rdf = TabularToRDF(folder + "CEA_Round2_Targets.csv", folder+"CTA_Round2_GT.csv")
+    single_rdf_file_ouput=folder + "all_tables_round2.ttl"
 
 
 csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
 
 
-create_type = False
+
+
+#Set up (for only one rdf file)
+if not multiple_files:
+    tabular2rdf.setUpRDFGraph()
 
 for csv_file in csv_file_names:
     
     table_name = csv_file.replace(".csv", "")
     has_header = True
     
-    rdf_file_ouput = join(folder_cea_tables_rdf, table_name) + ".ttl"
-    #print(rdf_file_ouput)
-    
-    
-    
-    tabular2rdf.ConvertTableToRDF(join(folder_cea_tables, csv_file), table_name, has_header, rdf_file_ouput, create_type)
-    
-    
+    if multiple_files:
+        rdf_file_ouput = join(folder_cea_tables_rdf, table_name) + ".ttl"
+        #print(rdf_file_ouput)
+        tabular2rdf.ConvertTableToRDF(join(folder_cea_tables, csv_file), table_name, has_header, rdf_file_ouput, create_type)
+    else:
+        tabular2rdf.ConvertTablesToRDF(join(folder_cea_tables, csv_file), table_name, has_header, create_type)
+
+#Store (for only one rdf file)
+if not multiple_files:
+    tabular2rdf.saveRDFGrah(single_rdf_file_ouput)
+
         

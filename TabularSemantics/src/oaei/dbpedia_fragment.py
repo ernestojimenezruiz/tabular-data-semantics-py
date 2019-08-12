@@ -12,6 +12,7 @@ from constants import RDFS, OWL
 
 import unicodedata
 
+import datetime
 
 import csv
 import pandas as pd
@@ -186,7 +187,7 @@ class DBPediaExtractor(object):
             i+=1
             
             if i in t:
-                print("Getting look up entities for table %s of %s." % (i, n))
+                print("Getting look up entities for table %s of %s (%s)." % (i, n, datetime.datetime.now().time()))
             
             table_name = csv_file.replace(".csv", "")
             
@@ -278,7 +279,7 @@ class DBPediaExtractor(object):
                 e_uri = URIRef(ent)
                 
                 if n in l:
-                    print("Extracting neighbourhood for " + str(n) + ": " + ent)
+                    print("Extracting neighbourhood for " + str(n) + ": " + ent + " (" + str(datetime.datetime.now().time()) + ")")
                 
                 dict_results = self.dbp_endpoint.getTriplesForSubject(ent, 100)
                 

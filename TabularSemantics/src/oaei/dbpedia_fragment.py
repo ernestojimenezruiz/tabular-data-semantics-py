@@ -234,7 +234,60 @@ class DBPediaExtractor(object):
         
         print("Number of extended entities with look-up: " + str(len(self.entities)))
         
+    
+    
+    def getEntitiesLookupForTable(self, csv_file):
+                
+        #Lookup call for each cell in target column
+        
+        
+        #Dictionary or cache to avoid repeated look-up
+        visited_values = set() 
+            
+        table_name = csv_file.replace(".csv", "")
+            
+        with open(join(folder_cea_tables, csv_file)) as csv_file:
+            
+                csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
+                
+                if table_name in self.target_column:
+                    target_column = self.target_column[table_name]
+                else: #End
+                    continue
                     
+                for row in csv_reader:
+                    if len(row)<=int(target_column): 
+                        continue
+                    
+                    if row[int(target_column)] not in visited_values:
+                        
+                        ##To avoid repetition
+                        visited_values.add(row[int(target_column)])
+                               
+                        #Lookup top-3
+                        dbpedia_entities = self.lookup.getKGEntities(row[int(target_column)], 3, '')
+                        for ent in dbpedia_entities:
+                            
+                            if self.isValidURI(ent.getId()):
+                                self.entities.add(ent.getId()) ##Add to entities to extract neighbours
+                                
+                                e_uri = URIRef(ent.getId())
+                                self.rdfgraph.add( (e_uri, RDF.type, URIRef(OWL.NAMEDINDIVIDUAL)) )
+                                
+                                for cls_type in ent.getTypes(KG.DBpedia):
+                                    self.rdfgraph.add( (e_uri, RDF.type, URIRef(cls_type)) )
+                                
+                            else:
+                                #print("Not valid URI:", ent.getId())
+                                pass
+                            
+                            
+                            
+                            
+                            
+                    
+        
+        print("Number of extended entities with look-up: " + str(len(self.entities)))        
             
     
     
@@ -326,6 +379,11 @@ class DBPediaExtractor(object):
     def identifyTypeOfProperty(self, prop):
         
         if prop in self.propertyType:
+            if self.propertyType[prop]:
+                self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLOBJECTPROPERTY)) )
+            else:
+                self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLDATAPROPERTY)) )  
+            
             return self.propertyType[prop]
         
         #Get statistics from endpoint        
@@ -436,10 +494,10 @@ class DBPediaExtractor(object):
             
             #print("New: " + prop)
             if isObjectProperty:                
-                self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLOBJECTPROPERTY)) )
+                #self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLOBJECTPROPERTY)) )
                 self.propertyType[prop]=True                                                                    
             else:
-                self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLDATAPROPERTY)) )
+                #self.rdfgraph.add( (URIRef(prop),  RDF.type, URIRef(OWL.OWLDATAPROPERTY)) )
                 self.propertyType[prop]=False
             
             #print(prop, self.propertyType[prop])
@@ -447,10 +505,10 @@ class DBPediaExtractor(object):
 
 
 
-
+multiple_fragments=True
+ch_round=2
 
 #Round 1
-ch_round=2
 if ch_round==1:
     folder = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/"
     folder_cea_tables=folder+"CEA_Round1/"
@@ -466,6 +524,7 @@ else:
     cta_gt = folder + "CTA/cta_gt.csv"
     out_ttl = folder + "dbpedia_round2.ttl"
 
+fragments_folder = folder + "Fragments/"
 
 
 #print(urlparse("http://dbpedia.org/resource/Sa`d_ibn_Abi_Waqqas"))
@@ -500,22 +559,58 @@ print("Wrong object '%s' for property '%s' (isObjectProperty=%s)" % (obj, prop, 
 
 '''
 
-extractor.setUpRDFGraph()
-extractor.localPropertyTypeExtractor(out_ttl)
 
+if multiple_fragments:
+    
+    extractor.localPropertyTypeExtractor(out_ttl)
+    
+    #Get Target column
+    extractor.getTargetColumns(cea_gt)
+    
+    csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
+        
+    i=0
+    n=len(csv_file_names)
+    t=[1, 5, 10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000]
 
-extractor.getEntities(cea_gt) #create entity definitions from GT
+    for csv_file in csv_file_names:
+        
+        extractor.setUpRDFGraph()
+        
+        i+=1
+            
+        if i in t:
+            print("Getting look up entities for table %s of %s (%s)." % (i, n, datetime.datetime.now().time()))
+    
+    
+        extractor.getEntitiesLookupForTable(csv_file) #look up for cells in tables
+    
+    
+        extractor.getAssertionsForInstances() #create subset of neighbourhood triples
+            
+        fragment_name = csv_file.replace(".csv", ".ttl")
+        
+        extractor.saveRDFGrah(join(fragments_folder, fragment_name))
+        
 
-extractor.getTypes(cta_gt) #From CSV
-extractor.getInstancesForTypes()  #From endpoint + create triples
-
-extractor.getEntitiesLookup(folder_cea_tables, cea_gt) #look up for cells in tables
-
-
-extractor.getAssertionsForInstances() #create subset of neighbourhood triples
-
-
-extractor.saveRDFGrah(out_ttl)
+else:
+    extractor.setUpRDFGraph()
+    extractor.localPropertyTypeExtractor(out_ttl)
+    
+    
+    extractor.getEntities(cea_gt) #create entity definitions from GT
+    
+    extractor.getTypes(cta_gt) #From CSV
+    extractor.getInstancesForTypes()  #From endpoint + create triples
+    
+    
+    extractor.getEntitiesLookup(folder_cea_tables, cea_gt) #look up for cells in tables
+    
+    
+    extractor.getAssertionsForInstances() #create subset of neighbourhood triples
+    
+    
+    extractor.saveRDFGrah(out_ttl)
 #''' 
         
         

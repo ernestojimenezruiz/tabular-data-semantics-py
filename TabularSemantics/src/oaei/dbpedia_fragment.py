@@ -22,6 +22,8 @@ from os.path import isfile, join
 from util import utilities
 import os
 from urllib.parse import urlparse, quote
+import os.path
+
 
 
 
@@ -84,7 +86,14 @@ class DBPediaExtractor(object):
         return str(text)    
     
     
+    #Precomputed
+    def setUpLocalDBPediaGraph(self, file_ttl):
+        self.localrdfgraph = Graph()
+        self.localrdfgraph.parse(source=file_ttl, format='turtle')
+        
     
+    
+    #To be computed
     def setUpRDFGraph(self):
         self.rdfgraph = Graph()
         #self.rdfgraph.bind(TabularToRDF.NAMESPACE_PREFIX, TabularToRDF.BASE_URI)
@@ -100,9 +109,75 @@ class DBPediaExtractor(object):
     def saveRDFGrah(self, rdf_file_ouput):
         #output same table name as ttl
         self.rdfgraph.serialize(str(rdf_file_ouput), format='turtle')#xml,turtle
+        
+        
+        wrong_file_name = ""
+        
+        try:
+        
+            if "?" in rdf_file_ouput:
+                wrong_file_name = rdf_file_ouput.split("?")[0]
+                os.rename(wrong_file_name, rdf_file_ouput)
+            elif "#" in rdf_file_ouput:
+                wrong_file_name = rdf_file_ouput.split("#")[0]
+                os.rename(wrong_file_name, rdf_file_ouput)
+            
+                
+            #print(wronf_file_name)
+        except:
+            print(wrong_file_name, rdf_file_ouput)
 
 
-    def getEntities(self, cea_file):
+
+    def getTargetEntitiesCEA(self, cea_file):
+        
+        #Target entiteis for table
+        self.targetEntities = dict()
+        
+        with open(cea_file) as csv_file:
+            
+            csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"', escapechar="\\")
+            
+            for row in csv_reader:
+                
+                if len(row)<4:
+                    continue
+                
+                
+                uris = row[3].split(" ")
+                
+                #entities per table
+                key = row[0] #+ "-"+ row[1] + "-"+ row[2]
+                
+                if key not in self.targetEntities:  
+                    self.targetEntities[key]=set()
+                    
+                self.targetEntities[key].update(uris)
+                
+                
+        
+    
+    
+    
+    def getEntitiesAndCreateInstancesTable(self, table_name):
+        
+        if table_name in self.targetEntities:
+        
+            for ent in self.targetEntities[table_name]:
+                
+                if self.isValidURI(ent):
+                    self.entities.add(ent)
+                    e_uri = URIRef(ent)                    
+                    self.rdfgraph.add( (e_uri, RDF.type, URIRef(OWL.NAMEDINDIVIDUAL)) )
+                #else:
+                #    pass
+            
+            
+            
+        
+    
+
+    def getEntitiesAndCreateInstances(self, cea_file):
         
         with open(cea_file) as csv_file:
             
@@ -253,11 +328,11 @@ class DBPediaExtractor(object):
                 if table_name in self.target_column:
                     target_column = self.target_column[table_name]
                 else: #End
-                    continue
+                    return
                     
                 for row in csv_reader:
                     if len(row)<=int(target_column): 
-                        continue
+                        return
                     
                     if row[int(target_column)] not in visited_values:
                         
@@ -282,12 +357,7 @@ class DBPediaExtractor(object):
                                 pass
                             
                             
-                            
-                            
-                            
-                    
-        
-        print("Number of extended entities with look-up: " + str(len(self.entities)))        
+       
             
     
     
@@ -308,7 +378,7 @@ class DBPediaExtractor(object):
 
 
 
-    def getAssertionsForInstances(self):
+    def getAssertionsForInstances(self, use_local_graph):
         
         #avoid some properties (see entity.py)
 
@@ -320,7 +390,7 @@ class DBPediaExtractor(object):
         
         n=0
         
-        l=[100, 1000, 2000, 3000, 4000, 5000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000]
+        l=[1, 5, 100, 1000, 2000, 3000, 4000, 5000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000]
         
         
         for ent in self.entities:
@@ -331,10 +401,16 @@ class DBPediaExtractor(object):
             
                 e_uri = URIRef(ent)
                 
-                if n in l:
-                    print("Extracting neighbourhood for " + str(n) + ": " + ent + " (" + str(datetime.datetime.now().time()) + ")")
+                #if n in l:
+                #    print("Extracting neighbourhood for " + str(n) + ": " + ent + " (" + str(datetime.datetime.now().time()) + ")")
                 
-                dict_results = self.dbp_endpoint.getTriplesForSubject(ent, 100)
+                
+                if use_local_graph:
+                    dict_results = self.getLocalTriplesForSubject(ent, 100)
+                else:
+                    dict_results = self.dbp_endpoint.getTriplesForSubject(ent, 100)
+                
+                
                 
                 for prop in dict_results:
                     
@@ -374,7 +450,29 @@ class DBPediaExtractor(object):
                 #print("Not valid URI:", ent)
                     
                     
-                    
+    def getLocalTriplesForSubject(self, ent, limit):
+        
+        query_str = "SELECT DISTINCT ?p ?o WHERE { <" + ent + "> ?p ?o  } limit " + str(limit)
+        
+        query_object = prepareQuery(query_str)#, initNs={CMR_QA.NAMESPACE_PREFIX : CMR_QA.BASE_URI})
+            
+        results = self.localrdfgraph.query(query_object)
+        
+        assertions = dict()
+        
+        
+        for result in results:
+            #print(str(result[0]), str(result[1]))
+            prop = str(result[0])
+            obj = str(result[1])
+            if prop not in assertions:
+                assertions[prop]=set()
+            assertions[prop].add(obj)
+        
+        #print(assertions)
+        
+        return assertions
+        
             
     def identifyTypeOfProperty(self, prop):
         
@@ -440,17 +538,14 @@ class DBPediaExtractor(object):
 
 
     #Using pre-extracted ttl/cache
-    def localPropertyTypeExtractor(self, file_ttl):
+    def localPropertyTypeExtractor(self):
     
-        localrdfgraph = Graph()
-        localrdfgraph.parse(source=file_ttl, format='turtle')
-    
-        
+            
         query_str = "SELECT DISTINCT ?p  WHERE { ?s ?p ?o . } "
         
         query_object = prepareQuery(query_str)#, initNs={CMR_QA.NAMESPACE_PREFIX : CMR_QA.BASE_URI})
         
-        predicates = localrdfgraph.query(query_object)
+        predicates = self.localrdfgraph.query(query_object)
         
         print("Using %s local predicates" % (len(predicates)))
         
@@ -476,7 +571,7 @@ class DBPediaExtractor(object):
             
             query_object = prepareQuery(query_str)#, initNs={CMR_QA.NAMESPACE_PREFIX : CMR_QA.BASE_URI})
             
-            values = localrdfgraph.query(query_object)
+            values = self.localrdfgraph.query(query_object)
             
             n_values = len(values)
             n_uris = 0
@@ -506,6 +601,7 @@ class DBPediaExtractor(object):
 
 
 multiple_fragments=True
+local_graph=True
 ch_round=2
 
 #Round 1
@@ -524,7 +620,7 @@ else:
     cta_gt = folder + "CTA/cta_gt.csv"
     out_ttl = folder + "dbpedia_round2.ttl"
 
-fragments_folder = folder + "Fragments/"
+fragments_folder = folder + "dbpedia_fragments/"
 
 
 #print(urlparse("http://dbpedia.org/resource/Sa`d_ibn_Abi_Waqqas"))
@@ -559,46 +655,109 @@ print("Wrong object '%s' for property '%s' (isObjectProperty=%s)" % (obj, prop, 
 
 '''
 
+#extractor.setUpLocalDBPediaGraph(out_ttl)
+#extractor.getLocalTriplesForSubject("http://dbpedia.org/resource/Alex_Rodriguez", 100)
 
+'''
+csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
+
+for csv_file in csv_file_names:
+    
+    fragment_name = csv_file.replace(".csv", ".ttl")
+    fragment_name_full_path = join(fragments_folder, fragment_name)
+    
+    wrong_file_name = ""
+        
+    i=0
+    #try:        
+    if "?" in fragment_name_full_path:
+            wrong_file_name = fragment_name_full_path.split("?")[0]
+            os.rename(wrong_file_name, fragment_name_full_path)
+            i+=1
+    elif "#" in fragment_name_full_path:
+            wrong_file_name = fragment_name_full_path.split("#")[0]
+            os.rename(wrong_file_name, fragment_name_full_path)
+            i+=1
+            
+    #except:
+    #    print(wrong_file_name, fragment_name_full_path)    
+    
+print("renamed %s files" % (i))    
+    
+    #If already analysed
+    #if (os.path.isfile(fragment_name_full_path) ):
+    #    continue
+'''
+
+#'''
 if multiple_fragments:
     
-    extractor.localPropertyTypeExtractor(out_ttl)
+    extractor.setUpLocalDBPediaGraph(out_ttl)
+    
+    extractor.localPropertyTypeExtractor()
     
     #Get Target column
     extractor.getTargetColumns(cea_gt)
+    #Target entities
+    extractor.getTargetEntitiesCEA(cea_gt)
     
     csv_file_names = [f for f in listdir(folder_cea_tables) if isfile(join(folder_cea_tables, f))]
         
     i=0
     n=len(csv_file_names)
-    t=[1, 5, 10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000]
+    t=[1, 2, 5, 10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000]
 
     for csv_file in csv_file_names:
         
-        extractor.setUpRDFGraph()
-        
-        i+=1
-            
+        i+=1    
         if i in t:
             print("Getting look up entities for table %s of %s (%s)." % (i, n, datetime.datetime.now().time()))
-    
-    
-        extractor.getEntitiesLookupForTable(csv_file) #look up for cells in tables
-    
-    
-        extractor.getAssertionsForInstances() #create subset of neighbourhood triples
-            
-        fragment_name = csv_file.replace(".csv", ".ttl")
         
-        extractor.saveRDFGrah(join(fragments_folder, fragment_name))
+        
+        fragment_name = csv_file.replace(".csv", ".ttl")
+        fragment_name_full_path = join(fragments_folder, fragment_name)
+        
+        #If already analysed
+        if (os.path.isfile(fragment_name_full_path) ):
+            if i in t:
+                print("\tAlready created fragment.")
+            continue
+        
+        
+        
+        
+        
+        extractor.entities = set()
+        
+        table_name = csv_file.replace(".csv", "")
+        
+        extractor.setUpRDFGraph()
+        
+        extractor.getEntitiesAndCreateInstancesTable(table_name)
+        if i in t:
+            print("\tNumber of entities: " + str(len(extractor.entities)))
+        
+        
+        extractor.getEntitiesLookupForTable(csv_file) #look up for cells in tables
+        if i in t:
+            print("\tNumber of extended entities with look-up: " + str(len(extractor.entities)))        
+    
+        extractor.getAssertionsForInstances(local_graph) #create subset of neighbourhood triples
+            
+       
+        
+        extractor.saveRDFGrah(fragment_name_full_path)
         
 
 else:
+    
+    extractor.setUpLocalDBPediaGraph(out_ttl)
+    
     extractor.setUpRDFGraph()
     extractor.localPropertyTypeExtractor(out_ttl)
     
     
-    extractor.getEntities(cea_gt) #create entity definitions from GT
+    extractor.getEntitiesAndCreateInstances(cea_gt) #create entity definitions from GT
     
     extractor.getTypes(cta_gt) #From CSV
     extractor.getInstancesForTypes()  #From endpoint + create triples
@@ -607,7 +766,7 @@ else:
     extractor.getEntitiesLookup(folder_cea_tables, cea_gt) #look up for cells in tables
     
     
-    extractor.getAssertionsForInstances() #create subset of neighbourhood triples
+    extractor.getAssertionsForInstances(local_graph) #create subset of neighbourhood triples
     
     
     extractor.saveRDFGrah(out_ttl)

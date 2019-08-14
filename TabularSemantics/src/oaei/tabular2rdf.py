@@ -101,11 +101,11 @@ class TabularToRDF(object):
         try:
         
             if "?" in rdf_file_ouput:
-                wronf_file_name = rdf_file_ouput.split("?")[0]
-                os.rename(wronf_file_name, rdf_file_ouput)
+                wrong_file_name = rdf_file_ouput.split("?")[0]
+                os.rename(wrong_file_name, rdf_file_ouput)
             elif "#" in rdf_file_ouput:
-                wronf_file_name = rdf_file_ouput.split("#")[0]
-                os.rename(wronf_file_name, rdf_file_ouput)
+                wrong_file_name = rdf_file_ouput.split("#")[0]
+                os.rename(wrong_file_name, rdf_file_ouput)
             
                 
             #print(wronf_file_name)
@@ -309,7 +309,7 @@ class TabularToRDF(object):
         
     
 multiple_files=False    
-ch_round=2
+ch_round=1
 create_type = True
 
 #ROUND 1

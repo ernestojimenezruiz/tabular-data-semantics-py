@@ -394,10 +394,10 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             
             
             #if int(row[0])<1000: #Jiaoyan starts from table file 1,000            
-            if int(row[0])>=1000: #ernesto
+            #if int(row[0])>=1000: #ernesto
             #if int(row[0])>=3: #ernesto 
             #if int(row[0])<587 or int(row[0])>=1000:  
-                continue
+            #    continue
             
             if not table_id==row[0]:
                 
@@ -734,15 +734,14 @@ start_time = time.time()
 
 #JIAOYAN: to be changed with your path
 #You may need to create folders CEA and CTA inside gt
-base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/dbpbench_v8/"
+base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Round3/"
 
 ####CTA
 '''
 craeteCTATask(base+"gt/CEA/gt_cea.csv",
               base+"gt/CTA/gt_cta.csv",
               base+"gt/CTA/gt_cta_all_types.csv",
-              base+"gt/CTA/cta_task_target_columns.csv", 0, 1000) #ernesto
-              #base+"gt/CTA/cta_task_target_columns.csv", 1000, 1923) #jiaoyan
+              base+"gt/CTA/cta_task_target_columns.csv", 0, 3000) #jiaoyan
 '''
 
 
@@ -753,7 +752,7 @@ base= "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/
 craeteCTATask(base+"CEA_Round1_gt.csv",
               base+"CTA_Round1_gt_for_CEA.csv",
               base+"CTA_Round1_gt_for_CEA_all_types.gt",
-'''              base+"CTA_Round1_targets_for_CEA.csv", 0, 1000)
+'''              base+"CTA_Round1_targets_for_CEA.csv", 0, 3000)
 
 
 ####CEA

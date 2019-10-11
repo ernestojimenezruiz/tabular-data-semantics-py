@@ -8,7 +8,6 @@ import csv
 from os.path import isfile, join
 
 
-
 def detectErrorsQuotesCTA(file_cta_in, file_cta_out):
     #Remove old cases
     

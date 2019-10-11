@@ -1,8 +1,10 @@
-import requests
 import re
 import time
+
 import sparql
+import requests
 import xml.etree.ElementTree as ET
+
 
 dbp_prefix = 'http://dbpedia.org/resource/'
 dbo_prefix = 'http://dbpedia.org/ontology/'

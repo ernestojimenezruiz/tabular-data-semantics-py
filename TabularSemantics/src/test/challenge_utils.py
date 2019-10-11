@@ -3,23 +3,20 @@ Created on 10 Jun 2019
 
 @author: ejimenez-ruiz
 '''
+from collections import OrderedDict
 import csv
-import pandas as pd
-
 from os import listdir
 from os.path import isfile, join
-
-import time
-
-from matching.kg_matching import Lookup, Endpoint
-from kg.entity import KG
-from util.utilities import *
-import time
-from collections import OrderedDict
-from kg.endpoints import DBpediaEndpoint
-from ontology.onto_access import DBpediaOntology
 import shutil
+import time
+import time
 
+from kg.endpoints import DBpediaEndpoint
+from kg.entity import KG
+from matching.kg_matching import Lookup, Endpoint
+from ontology.onto_access import DBpediaOntology
+import pandas as pd
+from util.utilities import *
 
 
 def craeteCTATask(file_cea, file_cta_1, file_cta_2, file_cta_target, from_table, to_table):
@@ -274,7 +271,7 @@ def tablesToChallengeFormatPandas(folder_gt, folder_tables, file_out_gt):
         for row in df:
         
             #URI, text, row number
-            #http://dbpedia.org/resource/Ahmet_%C3%96rken, Ahmet Ã\u0096rken, 1
+            #http://dbpedia.org/resource/Ahmet_%C3%96rken, Ahmet A\u0096rken, 1
             if len(row) < 3:
                 continue
                 
@@ -287,8 +284,8 @@ def tablesToChallengeFormatPandas(folder_gt, folder_tables, file_out_gt):
                 
             if column_id >= 0:
                 #Output
-                #“table id”, “column id”, “row id” and “DBPedia entity”
-                #“9206866_1_8114610355671172497”,”0”,”121”,”http://dbpedia.org/resource/Norway”                
+                #table id, column id, row id and DBPedia entity
+                #9206866_1_8114610355671172497,0,121,http://dbpedia.org/resource/Norway                
                 #f_out.write('\"%s\",\"%s\",\"%s\",\"%s\"\n' % (table_id, column_id, row_id, entity_uri))
                 writer = csv.writer(f_out, quoting=csv.QUOTE_ALL)
                 writer.writerow([table_id, column_id, row_id, entity_uri])
@@ -461,8 +458,8 @@ def extensionWithWikiRedirects(file_gt, folder_tables, file_out_gt, file_out_red
             
                 
             #Output
-            #“table id”, “column id”, “row id” and “DBPedia entity”
-            #“9206866_1_8114610355671172497”,”0”,”121”,”http://dbpedia.org/resource/Norway”
+            #table id, column id, row id and DBPedia entity
+            #9206866_1_8114610355671172497,0,121,http://dbpedia.org/resource/Norway
             line_str = '\"%s\",\"%s\",\"%s\"' % (table_id, col_id, row_id)                
             f_out_target.write(line_str+'\n')
                     
@@ -539,7 +536,7 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
             for row in csv_reader:
                 
                 #URI, text, row number
-                #http://dbpedia.org/resource/Ahmet_%C3%96rken, Ahmet Ã\u0096rken, 1
+                #http://dbpedia.org/resource/Ahmet_%C3%96rken, Ahmet A\u0096rken, 1
                 if len(row) < 3:
                     continue
                 
@@ -568,8 +565,8 @@ def tablesToChallengeFormat(folder_gt, folder_tables, file_out_gt, file_out_redi
                 
                 if column_id >= 0:
                     #Output
-                    #“table id”, “column id”, “row id” and “DBPedia entity”
-                    #“9206866_1_8114610355671172497”,”0”,”121”,”http://dbpedia.org/resource/Norway”
+                    #table id,column id, row id and DBPedia entity
+                    #9206866_1_8114610355671172497,0,121,http://dbpedia.org/resource/Norway
                     line_str = '\"%s\",\"%s\",\"%s\"' % (table_id, column_id, row_id)                
                     f_out_target.write(line_str+'\n')
                     
@@ -734,15 +731,15 @@ start_time = time.time()
 
 #JIAOYAN: to be changed with your path
 #You may need to create folders CEA and CTA inside gt
-base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Round3/"
-
+#base = "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Round3/"
+base = "/home/ernesto/Documents/Sem-Tab/Round4/"
 ####CTA
-'''
+#'''
 craeteCTATask(base+"gt/CEA/gt_cea.csv",
               base+"gt/CTA/gt_cta.csv",
               base+"gt/CTA/gt_cta_all_types.csv",
               base+"gt/CTA/cta_task_target_columns.csv", 0, 3000) #jiaoyan
-'''
+#'''
 
 
 
@@ -752,8 +749,8 @@ base= "/home/ejimenez-ruiz/Documents/ATI_AIDA/TabularSemantics/Challenge/Round1/
 craeteCTATask(base+"CEA_Round1_gt.csv",
               base+"CTA_Round1_gt_for_CEA.csv",
               base+"CTA_Round1_gt_for_CEA_all_types.gt",
-'''              base+"CTA_Round1_targets_for_CEA.csv", 0, 3000)
-
+              base+"CTA_Round1_targets_for_CEA.csv", 0, 3000)
+'''
 
 ####CEA
 '''

@@ -5,6 +5,7 @@ Created on 2 Jan 2019
 '''
 from owlready2 import *
 
+
 class OntologyAccess(object):
     '''
     classdocs

@@ -4,32 +4,24 @@ Created on 1 Aug 2019
 @author: ejimenez-ruiz
 '''
 
+import csv
+import datetime
+from os import listdir
+import os
+from os.path import isfile, join
+import os.path
+import unicodedata
+
+from constants import RDFS, OWL
+from kg.endpoints import DBpediaEndpoint
+from kg.entity import KG, KGEntity
+from kg.lookup import DBpediaLookup
+import pandas as pd
 from rdflib import Graph, URIRef, BNode, Literal, term
 from rdflib.namespace import RDF
 from rdflib.plugins.sparql import prepareQuery
-
-from constants import RDFS, OWL
-
-import unicodedata
-
-import datetime
-
-import csv
-import pandas as pd
-
-from os import listdir
-from os.path import isfile, join
-from util import utilities
-import os
 from urllib.parse import urlparse, quote
-import os.path
-
-
-
-
-from kg.endpoints import DBpediaEndpoint
-from kg.lookup import DBpediaLookup
-from kg.entity import KG, KGEntity
+from util import utilities
 
 
 class DBPediaExtractor(object):

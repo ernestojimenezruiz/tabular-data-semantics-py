@@ -3,9 +3,10 @@ Created on 19 Mar 2019
 
 @author: ejimenez-ruiz
 '''
+import time
+
 from SPARQLWrapper import SPARQLWrapper, JSON
 from kg.entity import URI_KG
-import time
 
 
 class SPARQLEndpoint(object):

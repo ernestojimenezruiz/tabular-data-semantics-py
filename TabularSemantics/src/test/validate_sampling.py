@@ -4,17 +4,15 @@ Created on 2 Apr 2019
 @author: ejimenez-ruiz
 '''
 
+from collections import OrderedDict
 import json
 import os
-
-from matching.kg_matching import Lookup, Endpoint
-from kg.entity import KG
-from util.utilities import *
 import time
-from collections import OrderedDict
+
 from kg.endpoints import DBpediaEndpoint
-
-
+from kg.entity import KG
+from matching.kg_matching import Lookup, Endpoint
+from util.utilities import *
 
 
 class JSONUtilities(object):

@@ -3,24 +3,21 @@ Created on 13 Jul 2019
 
 @author: ejimenez-ruiz
 '''
+from collections import OrderedDict
 import csv
-import pandas as pd
-
 from os import listdir
 from os.path import isfile, join
-
-import time
-
-from matching.kg_matching import Lookup, Endpoint
-from kg.entity import KG
-from util.utilities import *
-import time
-from collections import OrderedDict
-from kg.endpoints import DBpediaEndpoint
-from ontology.onto_access import DBpediaOntology
 import shutil
 import sys
+import time
+import time
 
+from kg.endpoints import DBpediaEndpoint
+from kg.entity import KG
+from matching.kg_matching import Lookup, Endpoint
+from ontology.onto_access import DBpediaOntology
+import pandas as pd
+from util.utilities import *
 
 
 def detectErrors():

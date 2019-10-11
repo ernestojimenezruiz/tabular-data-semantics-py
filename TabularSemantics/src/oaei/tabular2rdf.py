@@ -4,18 +4,16 @@ Created on 23 Jul 2019
 @author: ejimenez-ruiz
 '''
 
+import csv
+from os import listdir
+import os
+from os.path import isfile, join
+
+from constants import RDFS, OWL
+import pandas as pd
 from rdflib import Graph, URIRef, BNode, Literal
 from rdflib.namespace import RDF
-from constants import RDFS, OWL
-
-import csv
-import pandas as pd
-
-from os import listdir
-from os.path import isfile, join
 from util import utilities
-import os
-
 
 
 #Steps
@@ -25,7 +23,6 @@ import os
 #Assumes the left most (see column in GT?)
 #Create triples for type, and for type of class
 #Declare properties as DataTypeProperties or ObjectProperties
-
 class TabularToRDF(object):
     '''
     This class converts tabular data to RDF triples. It perform a raw conversion for the OAEI, so that OAEI systems

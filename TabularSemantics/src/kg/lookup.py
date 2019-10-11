@@ -4,18 +4,18 @@ Created on 19 Mar 2019
 @author: ejimenez-ruiz
 '''
 
-import json
-from urllib import parse,request
-from pprint import pprint
-from kg.entity import KGEntity 
-
-
-import time
-
-
 '''
 Parent lookup class
 '''
+
+import json
+from pprint import pprint
+import time
+from urllib import parse, request
+
+from kg.entity import KGEntity 
+
+
 class Lookup(object):
     '''
     classdocs

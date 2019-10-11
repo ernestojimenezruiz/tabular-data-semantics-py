@@ -4,24 +4,19 @@ Created on 21 Mar 2019
 @author: ejimenez-ruiz
 '''
 
-from kg.entity import KGEntity
-from kg.lookup import DBpediaLookup
-from kg.lookup import WikidataAPI
-from kg.lookup import GoogleKGLookup
+import time
 
 from kg.endpoints import DBpediaEndpoint
 from kg.endpoints import WikidataEndpoint
-
+from kg.entity import KG
+from kg.entity import KGEntity
+from kg.entity import URI_KG
+from kg.lookup import DBpediaLookup
+from kg.lookup import GoogleKGLookup
+from kg.lookup import WikidataAPI
 from ontology.onto_access import DBpediaOntology
 from ontology.onto_access import SchemaOrgOntology
-
-from kg.entity import KG
-from kg.entity import URI_KG
-
 from util.utilities import *
-
-import time
-
 
 
 class Endpoint(object):

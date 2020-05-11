@@ -60,6 +60,18 @@ class URI_KG(object):
     avoid_predicates.add("http://dbpedia.org/property/related")
     
     
+    avoid_top_concepts=set()
+    avoid_top_concepts.add("http://www.w3.org/2002/07/owl#Thing")
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q35120") #something
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q830077") #subject 
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q18336849")  #item with given name property 
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q23958946") #individual/instance
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q26720107") # subject of a right 
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q488383") #  object  
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q4406616") #concrete object 
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q29651224") # natural object
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q223557") #physical object 
+    avoid_top_concepts.add("http://www.wikidata.org/entity/Q16686022") # natural physical object
     
     
     def __init__(self):

@@ -78,6 +78,19 @@ class SPARQLEndpoint(object):
         return self.getQueryResultsArityOne(query)
     
     
+    def getDistanceToAllSuperClasses(self, uri_class):
+        
+        query = self.createSPARQLQueryDistanceToAllSuperClassesForSubject(uri_class)
+             
+        super2dist = self.getQueryResultsArityTwo(query, False, False)
+        
+        #Filter top classes   
+        for top_cls in URI_KG.avoid_top_concepts:
+            super2dist.pop(top_cls, None)
+    
+    
+        return super2dist
+    
     
     def getPredicatesForSubject(self, subject_entity, limit=1000):
         
@@ -229,7 +242,8 @@ class SPARQLEndpoint(object):
         
         return result_dict
         
-
+        
+ 
     
     
     
@@ -448,6 +462,9 @@ class WikidataEndpoint(SPARQLEndpoint):
         return "SELECT DISTINCT ?uri WHERE { <" + uri_subject + "> <http://www.wikidata.org/prop/direct/P31> ?uri . }"
     
     
+    
+    
+    
         
         
     def createSPARQLQueryAllTypesForSubject(self, uri_subject):
@@ -494,7 +511,26 @@ class WikidataEndpoint(SPARQLEndpoint):
         + "} " \
         + "}";
         
-      
+        
+        
+    def createSPARQLQueryAllSuperClassesForSubject(self, uri_subject):
+        
+        return "SELECT DISTINCT ?uri " \
+        + "WHERE {" \
+        + "<" + uri_subject + "> <http://www.wikidata.org/prop/direct/P279>+ ?uri " \
+        + "}";
+    
+    
+    def createSPARQLQueryDistanceToAllSuperClassesForSubject(self, uri_subject):
+        
+
+        return "SELECT  ?outA (count(?mid) as ?outB) " \
+        + "WHERE {" \
+        + "values ?uri_subject { <" + uri_subject + "> }" \
+        + "?uri_subject <http://www.wikidata.org/prop/direct/P279>* ?mid ." \
+        + "?mid <http://www.wikidata.org/prop/direct/P279>+ ?outA . " \
+        + "}" \
+        + "GROUP BY ?uri_subject ?outA";  
     
 
 
@@ -551,20 +587,23 @@ if __name__ == '__main__':
     
     
     
-    #ep = WikidataEndpoint()
+    ep = WikidataEndpoint()
     #types = ep.getAllTypesForEntity("http://www.wikidata.org/entity/Q22")
     #print(len(types), types)
     
     
     
     equiv = ep.getEquivalentClasses(cls)
-    #print(len(equiv), equiv)
+    print(len(equiv), equiv)
     
     
     same = ep.getSameEntities(ent)
     #print(len(same), same)
     
     
+    gt_cls="http://www.wikidata.org/entity/Q5"
+    sup2dist = ep.getDistanceToAllSuperClasses(gt_cls)
+    print(len(sup2dist), sup2dist)
     
     
     

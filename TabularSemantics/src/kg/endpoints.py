@@ -402,6 +402,18 @@ class DBpediaEndpoint(SPARQLEndpoint):
         + "{ ?uri <http://www.w3.org/2002/07/owl#equivalentClass> <" + uri_class + "> ." \
         + "} " \
         + "}";
+        
+        
+        
+    def createSPARQLQueryDistanceToAllSuperClassesForSubject(self, uri_subject):
+        return "SELECT  ?outA (count(?mid) as ?outB) " \
+        + "WHERE {" \
+        + "<"+uri_subject+"> <http://www.w3.org/2000/01/rdf-schema#subClassOf>* ?mid . " \
+        + "?mid <http://www.w3.org/2000/01/rdf-schema#subClassOf>+ ?outA . " \
+        + "}" \
+        + "GROUP BY ?outA";  
+        ##+ "values ?uri_subject { <" + uri_subject + "> }" \
+        
             
         
     def createSPARQLQueryAllSuperClassesForSubject(self, uri_subject):
@@ -581,9 +593,11 @@ if __name__ == '__main__':
     
     cls = "http://dbpedia.org/ontology/Country"
     #cls = "http://dbpedia.org/ontology/Person"
-    cls = 'http://www.wikidata.org/entity/Q6256'
+    #cls = 'http://www.wikidata.org/entity/Q6256'
     
    
+    sup2dist = ep.getDistanceToAllSuperClasses(cls)
+    print(len(sup2dist), sup2dist)
     
     
     

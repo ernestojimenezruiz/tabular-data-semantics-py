@@ -73,14 +73,14 @@ class SPARQLEndpoint(object):
     
     def getAllSuperClasses(self, uri_class):
         
-        query = self.createSPARQLQueryAllSuperClassesForSubject(uri_class)
+        query = self.createSPARQLQueryAllSuperClassesFoClass(uri_class)
         
         return self.getQueryResultsArityOne(query)
     
     
     def getDistanceToAllSuperClasses(self, uri_class):
         
-        query = self.createSPARQLQueryDistanceToAllSuperClassesForSubject(uri_class)
+        query = self.createSPARQLQueryDistanceToAllSuperClassesForClass(uri_class)
              
         super2dist = self.getQueryResultsArityTwo(query, False, False)
         
@@ -90,6 +90,34 @@ class SPARQLEndpoint(object):
     
     
         return super2dist
+    
+    
+    
+    def getAllSubClasses(self, uri_class):
+        
+        query = self.createSPARQLQueryAllSubClassesFoClass(uri_class)
+        
+        return self.getQueryResultsArityOne(query)
+    
+    
+    def getDistanceToAllSubClasses(self, uri_class, max_level=-1):
+        
+        query = self.createSPARQLQueryDistanceToAllSubClassesForClass(uri_class)
+             
+        sub2dist = self.getQueryResultsArityTwo(query, False, False)
+        
+        if max_level>0:
+            sub2dist_new = sub2dist.copy()
+            for scls in sub2dist.keys():
+                #Only one element in set
+                if int(sorted(sub2dist_new[scls])[0])>max_level:
+                    sub2dist_new.pop(scls)
+                
+            return sub2dist_new
+        else:
+            return sub2dist
+            
+        
     
     
     def getPredicatesForSubject(self, subject_entity, limit=1000):
@@ -405,10 +433,10 @@ class DBpediaEndpoint(SPARQLEndpoint):
         
         
         
-    def createSPARQLQueryDistanceToAllSuperClassesForSubject(self, uri_subject):
+    def createSPARQLQueryDistanceToAllSuperClassesForClass(self, uri_cls):
         return "SELECT  ?outA (count(?mid) as ?outB) " \
         + "WHERE {" \
-        + "<"+uri_subject+"> <http://www.w3.org/2000/01/rdf-schema#subClassOf>* ?mid . " \
+        + "<"+uri_cls+"> <http://www.w3.org/2000/01/rdf-schema#subClassOf>* ?mid . " \
         + "?mid <http://www.w3.org/2000/01/rdf-schema#subClassOf>+ ?outA . " \
         + "}" \
         + "GROUP BY ?outA";  
@@ -416,16 +444,43 @@ class DBpediaEndpoint(SPARQLEndpoint):
         
             
         
-    def createSPARQLQueryAllSuperClassesForSubject(self, uri_subject):
+    def createSPARQLQueryAllSuperClassesForClass(self, uri_cls):
             
         return "SELECT DISTINCT ?uri " \
         + "WHERE { " \
-        + "{<" + uri_subject + "> <http://www.w3.org/2000/01/rdf-schema#subClassOf>* ?uri ." \
+        + "{<" + uri_cls + "> <http://www.w3.org/2000/01/rdf-schema#subClassOf>* ?uri ." \
         + "}" \
         + "UNION {" \
-        + "<" + uri_subject + "> <http://www.w3.org/2002/07/owl#equivalentClass> ?uri ." \
+        + "<" + uri_cls + "> <http://www.w3.org/2002/07/owl#equivalentClass> ?uri ." \
         + "}" \
         + "}"
+    
+    
+    
+    def createSPARQLQueryAllSubClassesForClass(self, uri_cls):
+        
+        return "SELECT DISTINCT ?uri " \
+        + "WHERE { " \
+        + "{?uri <http://www.w3.org/2000/01/rdf-schema#subClassOf>* <" + uri_cls + "> ." \
+        + "}" \
+        + "UNION {" \
+        + "<" + uri_cls + "> <http://www.w3.org/2002/07/owl#equivalentClass> ?uri ." \
+        + "}" \
+        + "}"
+    
+    
+    def createSPARQLQueryDistanceToAllSubClassesForClass(self, uri_cls):
+        
+
+        return "SELECT  ?outA (count(?mid) as ?outB) " \
+        + "WHERE {" \
+        + "?mid <http://www.w3.org/2000/01/rdf-schema#subClassOf>* <"+uri_cls+"> . " \
+        + "?outA <http://www.w3.org/2000/01/rdf-schema#subClassOf>+ ?mid . " \
+        + "}" \
+        + "GROUP BY ?outA";  
+        ##+ "values ?uri_subject { <" + uri_subject + "> }" \
+    
+    
         
     def createSPARQLQuerySameAsEntities(self, uri_entity):
         return "SELECT DISTINCT ?uri " \
@@ -525,24 +580,48 @@ class WikidataEndpoint(SPARQLEndpoint):
         
         
         
-    def createSPARQLQueryAllSuperClassesForSubject(self, uri_subject):
+    def createSPARQLQueryAllSuperClassesForClass(self, uri_cls):
         
         return "SELECT DISTINCT ?uri " \
         + "WHERE {" \
-        + "<" + uri_subject + "> <http://www.wikidata.org/prop/direct/P279>+ ?uri " \
+        + "<" + uri_cls + "> <http://www.wikidata.org/prop/direct/P279>+ ?uri " \
         + "}";
     
     
-    def createSPARQLQueryDistanceToAllSuperClassesForSubject(self, uri_subject):
+    def createSPARQLQueryDistanceToAllSuperClassesForClass(self, uri_cls):
         
 
         return "SELECT  ?outA (count(?mid) as ?outB) " \
         + "WHERE {" \
-        + "values ?uri_subject { <" + uri_subject + "> }" \
-        + "?uri_subject <http://www.wikidata.org/prop/direct/P279>* ?mid ." \
+        + "values ?uri_cls { <" + uri_cls + "> }" \
+        + "?uri_cls <http://www.wikidata.org/prop/direct/P279>* ?mid ." \
         + "?mid <http://www.wikidata.org/prop/direct/P279>+ ?outA . " \
         + "}" \
-        + "GROUP BY ?uri_subject ?outA";  
+        + "GROUP BY ?uri_cls ?outA";  
+    
+    
+    
+    
+    def createSPARQLQueryAllSubClassesForClass(self, uri_cls):
+        
+        return "SELECT DISTINCT ?uri " \
+        + "WHERE {" \
+        + "?uri <http://www.wikidata.org/prop/direct/P279>+ <" + uri_cls + ">" \
+        + "}";
+    
+    
+    def createSPARQLQueryDistanceToAllSubClassesForClass(self, uri_cls):
+        
+
+        return "SELECT  ?outA (count(?mid) as ?outB) " \
+        + "WHERE {" \
+        + "values ?uri_cls { <" + uri_cls + "> }" \
+        + "?mid <http://www.wikidata.org/prop/direct/P279>* ?uri_cls ." \
+        + "?outA <http://www.wikidata.org/prop/direct/P279>+ ?mid . " \
+        + "}" \
+        + "GROUP BY ?uri_cls ?outA";  
+    
+    
     
 
 
@@ -599,6 +678,9 @@ if __name__ == '__main__':
     sup2dist = ep.getDistanceToAllSuperClasses(cls)
     print(len(sup2dist), sup2dist)
     
+    sub2dist = ep.getDistanceToAllSubClasses(cls)
+    print(len(sub2dist), sub2dist)
+    
     
     
     ep = WikidataEndpoint()
@@ -607,17 +689,21 @@ if __name__ == '__main__':
     
     
     
-    equiv = ep.getEquivalentClasses(cls)
-    print(len(equiv), equiv)
+    #equiv = ep.getEquivalentClasses(cls)
+    #print(len(equiv), equiv)
     
     
-    same = ep.getSameEntities(ent)
+    #same = ep.getSameEntities(ent)
     #print(len(same), same)
     
     
     gt_cls="http://www.wikidata.org/entity/Q5"
     sup2dist = ep.getDistanceToAllSuperClasses(gt_cls)
     print(len(sup2dist), sup2dist)
+    
+    
+    sub2dist = ep.getDistanceToAllSubClasses(gt_cls, 2)
+    print(len(sub2dist), sub2dist)
     
     
     

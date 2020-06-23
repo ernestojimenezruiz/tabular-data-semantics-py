@@ -324,21 +324,25 @@ if __name__ == '__main__':
     #query = 'http://dbpedia.org/resource/Scotland'
     limit=5
     
-    kg = GoogleKGLookup()
-    entities = kg.getKGEntities(query, limit)
-    for ent in  entities:
-        print(ent)
+    #To be checked. Format of json seems to be different
+    #kg = GoogleKGLookup()
+    #entities = kg.getKGEntities(query, limit)
+    #for ent in  entities:
+    #    print(ent)
     
     
     dbpedia = DBpediaLookup()
     entities = dbpedia.getKGEntities(query, limit)
+    print("Entities from DBPedia:")
     for ent in  entities:
         print(ent)
     
     
+    print("\n")
     
     wikidata = WikidataAPI()
     entities = wikidata.getKGEntities(query, limit)
+    print("Entities from Wikidata:")
     for ent in  entities:
         print(ent)
         

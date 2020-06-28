@@ -35035,7 +35035,6 @@
         <rdfs:subClassOf rdf:resource="http://dbpedia.org/ontology/Place"/>
         <rdfs:subClassOf rdf:resource="http://www.ontologydesignpatterns.org/ont/d0.owl#Location"/>
         <rdfs:comment xml:lang="en">Monastery denotes the building, or complex of buildings, comprising the domestic quarters and workplace(s) of monastics, whether monks or nuns, and whether living in community or alone (hermits). The monastery generally includes a place reserved for prayer which may be a chapel, church or temple, and may also serve as an oratory. (http://en.wikipedia.org/wiki/Monastry).</rdfs:comment>
-(http://en.wikipedia.org/wiki/Monastry).</rdfs:comment>
         <rdfs:label xml:lang="en">monastery</rdfs:label>
         <prov:wasDerivedFrom rdf:resource="http://mappings.dbpedia.org/index.php/OntologyClass:Monastery"/>
     </owl:Class>

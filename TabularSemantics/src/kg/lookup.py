@@ -112,10 +112,14 @@ class DBpediaLookup(Lookup):
                     if t['uri'].startswith('http://dbpedia.org/ontology/') or t['uri'].startswith('http://www.wikidata.org/entity/') or t['uri'].startswith('http://schema.org/'): 
                         types.add(t['uri'])
             
+            description=''
+            if 'description' in element:
+                description = element['description']
+            
             kg_entity = KGEntity(
                 element['uri'],
                 element['label'],
-                element['description'],
+                description,
                 types,
                 self.getKGName()
                 )
@@ -196,10 +200,14 @@ class WikidataAPI(Lookup):
             #empty list of type from wikidata lookup
             types = set()
             
+            description=''
+            if 'description' in element:
+                description = element['description']
+            
             kg_entity = KGEntity(
                 element['concepturi'],
                 element['label'],
-                element['description'],
+                description,
                 types,
                 self.getKGName()
                 )
@@ -286,10 +294,16 @@ class GoogleKGLookup(Lookup):
                 if t != 'Thing':
                     types.add("http://schema.org/"+t)
             
+            
+            description=''
+            if 'description' in  element['result']:
+                description = element['result']['description']
+            
+            
             kg_entity = KGEntity(
                 element['result']['@id'],
                 element['result']['name'],
-                element['result']['description'],
+                description,
                 types,
                 self.getKGName()
                 )

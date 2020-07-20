@@ -334,7 +334,9 @@ class GoogleKGLookup(Lookup):
 if __name__ == '__main__':
     
     #query = 'Taylor Swift'
-    query = 'Scotland'
+    #query = 'Scotland'
+    query = "Prim's algorithm"
+    query = "middle-square method"
     #query = 'http://dbpedia.org/resource/Scotland'
     limit=5
     
@@ -353,6 +355,8 @@ if __name__ == '__main__':
     
     
     print("\n")
+    
+    
     
     wikidata = WikidataAPI()
     entities = wikidata.getKGEntities(query, limit)

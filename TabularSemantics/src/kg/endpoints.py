@@ -7,6 +7,7 @@ import time
 
 from SPARQLWrapper import SPARQLWrapper, JSON
 from kg.entity import URI_KG
+import sys
 
 
 class SPARQLEndpoint(object):
@@ -631,12 +632,31 @@ if __name__ == '__main__':
     TODO: Filter by schema.org, dbpedia or wikidata
     '''
 
-    ent = "http://dbpedia.org/resource/Scotland"
-    ent = "http://dbpedia.org/resource/Allan_Pinkerton"
-    #ent = 'http://www.wikidata.org/entity/Q22'
+    ent="http://www.wikidata.org/entity/Q470813" #Prim's algorithm
+    ent="http://www.wikidata.org/entity/Q466575" #middle-square method
+    print(ent)
+    ep = WikidataEndpoint()
+    types = ep.getTypesForEntity(ent)
+    print(len(types), types)
+    
+    
+    
+    
+    
+    
+    
+    
+    if True:
+        sys.exit(0) 
+    
 
+
+    ent = "http://dbpedia.org/resource/Scotland"
+    #ent = "http://dbpedia.org/resource/Allan_Pinkerton"
+    #ent = 'http://www.wikidata.org/entity/Q22'
+    #"http://dbpedia.org/resource/Hern%C3%A1n_Andrade"
     ep = DBpediaEndpoint()
-    types = ep.getAllTypesForEntity("http://dbpedia.org/resource/Hern%C3%A1n_Andrade")
+    types = ep.getAllTypesForEntity(ent)
     print(len(types), types)
     
     

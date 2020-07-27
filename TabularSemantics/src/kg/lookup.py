@@ -171,14 +171,16 @@ class WikidataAPI(Lookup):
     
     
     
-    def __createParams(self, query, limit):
+    def __createParams(self, query, limit, type='item'):
         
         params = {
             'action': 'wbsearchentities',
             'format' : 'json',
             'search': query,
+            'type': type,
             'limit': limit,
             'language' : 'en'
+        
             
         }
         
@@ -225,8 +227,8 @@ class WikidataAPI(Lookup):
     
     
     
-    def getKGEntities(self, query, limit, filter=''):        
-        json = self.getJSONRequest(self.__createParams(query, limit), 3)     
+    def getKGEntities(self, query, limit, type='item', filter=''):        
+        json = self.getJSONRequest(self.__createParams(query, limit, type), 3)     
         
         if json==None:
             print("None results for", query)
@@ -338,6 +340,8 @@ if __name__ == '__main__':
     query = "Prim's algorithm"
     query = "middle-square method"
     #query = 'http://dbpedia.org/resource/Scotland'
+    query = "Israel Museum Jerusalem artist"
+    #query = "ARTIC artist"
     limit=5
     
     #To be checked. Format of json seems to be different
@@ -357,9 +361,10 @@ if __name__ == '__main__':
     print("\n")
     
     
-    
+    type="item"
+    type="property"
     wikidata = WikidataAPI()
-    entities = wikidata.getKGEntities(query, limit)
+    entities = wikidata.getKGEntities(query, limit, type)
     print("Entities from Wikidata:")
     for ent in  entities:
         print(ent)

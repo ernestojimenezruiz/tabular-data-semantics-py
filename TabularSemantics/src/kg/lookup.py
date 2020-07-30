@@ -76,6 +76,8 @@ class DBpediaLookup(Lookup):
     def getURL(self):
         return "http://lookup.dbpedia.org/api/search/KeywordSearch"
         #TODO: prefix search allows for partial searches
+        #return "http://lookup.dbpedia.org/api/search/PrefixSearch"
+        
         
         
         
@@ -342,6 +344,9 @@ if __name__ == '__main__':
     #query = 'http://dbpedia.org/resource/Scotland'
     query = "Israel Museum Jerusalem artist"
     #query = "ARTIC artist"
+    query="heaviest player Chicago Bulls?"
+    #query="Chicago Bulls"
+    query="player"
     limit=5
     
     #To be checked. Format of json seems to be different
@@ -362,9 +367,9 @@ if __name__ == '__main__':
     
     
     type="item"
-    type="property"
+    #type="property"
     wikidata = WikidataAPI()
-    entities = wikidata.getKGEntities(query, limit, type)
+    entities = wikidata.getKGEntities(query, limit, "item")
     print("Entities from Wikidata:")
     for ent in  entities:
         print(ent)

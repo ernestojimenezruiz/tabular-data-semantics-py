@@ -53,11 +53,32 @@ class OntologyAccess(object):
     def getClassByName(self, name):
         
         for cls in list(self.getOntology().classes()):
-            if (cls.name==name):
+            if (cls.name.lower()==name.lower()):
                 return cls
             
         return None
     
+    
+    def getClassObjectsContainingName(self, name):
+        
+        classes = []
+        
+        for cls in list(self.getOntology().classes()):
+            if (name.lower() in cls.name.lower()):
+                classes.append(cls)
+            
+        return classes
+    
+    
+    def getClassIRIsContainingName(self, name):
+        
+        classes = []
+        
+        for cls in list(self.getOntology().classes()):
+            if (name.lower() in cls.name.lower()):
+                classes.append(cls.iri)
+            
+        return classes
     
     
     def getAncestorsURIsMinusClass(self,cls):
@@ -180,9 +201,14 @@ if __name__ == '__main__':
     
     
     onto_access = DBpediaOntology()
-    onto_access = SchemaOrgOntology()
+    #onto_access = SchemaOrgOntology()
     
     onto_access.loadOntology(True)
+    
+    
+    
+    print(onto_access.getClassIRIsContainingName("player"))
+    print(onto_access.getClassIRIsContainingName("actor"))
     
     
     

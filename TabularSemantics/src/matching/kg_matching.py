@@ -659,8 +659,9 @@ if __name__ == '__main__':
     
     # seconds passed since epoch
     init = time.time()
-    #lookup.getKGEntities(cell, 5)
-    types = lookup.getTypesForEntity('http://dbpedia.org/resource/Wales')
+    cell="Chicago Bulls"
+    print(lookup.getKGEntities(cell, 5))
+    types = lookup.getTypesForEntity('http://dbpedia.org/resource/Chicago_Bulls')
     
     end = time.time()
         #local_time = time.ctime(seconds)

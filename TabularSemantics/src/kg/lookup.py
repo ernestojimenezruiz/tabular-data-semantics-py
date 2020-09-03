@@ -345,8 +345,8 @@ if __name__ == '__main__':
     query = "Israel Museum Jerusalem artist"
     #query = "ARTIC artist"
     query="heaviest player Chicago Bulls?"
-    #query="Chicago Bulls"
-    query="player"
+    query="Chicago Bulls"
+    #query="player"
     limit=5
     
     #To be checked. Format of json seems to be different

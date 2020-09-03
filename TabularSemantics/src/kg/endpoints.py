@@ -32,6 +32,14 @@ class SPARQLEndpoint(object):
         return self.getQueryResultsArityOne(query)
     
     
+    
+    def getEnglishLabelsForEntity(self, ent):
+        
+        query = self.createEnglishLabelsForURI(ent)
+        
+        return self.getQueryResultsArityOne4Literals(query)
+    
+    
         
     def getEntitiesForType(self, cls, offset=0, limit=1000):
         
@@ -238,6 +246,31 @@ class SPARQLEndpoint(object):
     
     
     
+    def getQueryResultsArityOne4Literals(self, query):
+        
+        
+        results = self.getQueryResults(query, 3)
+            
+            
+        result_set = set()
+    
+        if results==None:
+            print("None results for", query)
+            return result_set
+            
+    
+        for result in results["results"]["bindings"]:
+            
+            value = result["literal"]["value"]
+            
+            result_set.add(value)
+        
+        
+        return result_set
+    
+    
+    
+    
     def getQueryResultsArityTwo(self, query, filter_outA=True, filter_outB=True):
         
         #self.sparqlw.setQuery(query)
@@ -334,6 +367,9 @@ class SPARQLEndpoint(object):
         return "SELECT DISTINCT ?uri WHERE { [] ?p <" + obj + "> . ?p rdfs:range ?uri . } GROUP BY ?uri HAVING (COUNT(?uri) > 3) ORDER BY DESC(COUNT(?uri)) limit " + str(limit)
     
     
+    def createEnglishLabelsForURI(self, uri_subject):
+        return "SELECT DISTINCT ?literal WHERE { <" + uri_subject + "> rdfs:label ?literal . FILTER( langMatches(lang(?literal), 'en')) }"
+    
 
 class DBpediaEndpoint(SPARQLEndpoint):
     '''
@@ -387,6 +423,11 @@ class DBpediaEndpoint(SPARQLEndpoint):
        
     
     
+    
+    #def createEnglishLabelsForURI(self, uri_subject):
+    #    return "SELECT DISTINCT ?literal WHERE { <" + uri_subject + "> rdfs:label ?literal . FILTER( langMatches(lang(?literal), 'en')) }"
+        
+        
 
     def createSPARQLQueryTypesForSubject(self, uri_subject):
             
@@ -533,6 +574,12 @@ class WikidataEndpoint(SPARQLEndpoint):
     
     
     
+    
+    
+        
+    
+    
+    
         
         
     def createSPARQLQueryAllTypesForSubject(self, uri_subject):
@@ -632,12 +679,12 @@ if __name__ == '__main__':
     TODO: Filter by schema.org, dbpedia or wikidata
     '''
 
-    ent="http://www.wikidata.org/entity/Q470813" #Prim's algorithm
-    ent="http://www.wikidata.org/entity/Q466575" #middle-square method
-    print(ent)
-    ep = WikidataEndpoint()
-    types = ep.getTypesForEntity(ent)
-    print(len(types), types)
+    #ent="http://www.wikidata.org/entity/Q470813" #Prim's algorithm
+    #ent="http://www.wikidata.org/entity/Q466575" #middle-square method
+    #print(ent)
+    #ep = WikidataEndpoint()
+    #types = ep.getTypesForEntity(ent)
+    #print(len(types), types)
     
     
     
@@ -646,8 +693,8 @@ if __name__ == '__main__':
     
     
     
-    if True:
-        sys.exit(0) 
+    #if True:
+    #    sys.exit(0) 
     
 
 
@@ -655,19 +702,31 @@ if __name__ == '__main__':
     #ent = "http://dbpedia.org/resource/Allan_Pinkerton"
     #ent = 'http://www.wikidata.org/entity/Q22'
     #"http://dbpedia.org/resource/Hern%C3%A1n_Andrade"
+    ent="http://dbpedia.org/resource/Chicago_Bulls"
     ep = DBpediaEndpoint()
-    types = ep.getAllTypesForEntity(ent)
+    types = ep.getTypesForEntity(ent)
     print(len(types), types)
+    
+    
+    sameas = ep.getSameEntities(ent)
+    print(len(sameas), sameas)
+    
+    
+    
+    labels = ep.getEnglishLabelsForEntity(ent)
+    print(len(labels), labels)
+    
+    
     
     
     cls = "http://dbpedia.org/ontology/BaseballTeam"
     
-    entities = ep.getEntitiesForType(cls, 0, 100)
-    for e in entities:
-        print(e)
-    entities = ep.getEntitiesLabelsForType(cls, 0, 100)
-    for e, label in entities.items():
-        print(e, label)
+    #entities = ep.getEntitiesForType(cls, 0, 100)
+    #for e in entities:
+    #    print(e)
+    #entities = ep.getEntitiesLabelsForType(cls, 0, 100)
+    #for e, label in entities.items():
+    #    print(e, label)
     
     
     #predicatesForSubject = ep.getPredicatesForSubject(ent, 10)
@@ -718,6 +777,7 @@ if __name__ == '__main__':
     
     
     gt_cls="http://www.wikidata.org/entity/Q5"
+    
     sup2dist = ep.getDistanceToAllSuperClasses(gt_cls)
     print(len(sup2dist), sup2dist)
     
@@ -725,6 +785,13 @@ if __name__ == '__main__':
     sub2dist = ep.getDistanceToAllSubClasses(gt_cls, 2)
     print(len(sub2dist), sub2dist)
     
+    
+    
+    
+    ent="http://www.wikidata.org/entity/Q22"
+    ent="http://www.wikidata.org/entity/Q128109"
+    labels = ep.getEnglishLabelsForEntity(ent)
+    print(len(labels), labels)
     
     
     

@@ -685,16 +685,35 @@ if __name__ == '__main__':
     #ep = WikidataEndpoint()
     #types = ep.getTypesForEntity(ent)
     #print(len(types), types)
+    cls = "http://dbpedia.org/ontology/Country"
+    #cls = "http://dbpedia.org/ontology/Person"
+    
+    
+    
+    ep = DBpediaEndpoint()
+    
+    # seconds passed since epoch
+    init = time.time()
+    
+    entities=set()
+    entities = ep.getEntitiesForType(cls, 0, 100)
+    print("Extracted entities: ", len(entities))
+    for ent in entities:
+        print(ent)
+    
+    end = time.time()
+    
+
+    #local_time = time.ctime(seconds)
+    print("Time:", end-init)
     
     
     
     
     
     
-    
-    
-    #if True:
-    #    sys.exit(0) 
+    if True:
+        sys.exit(0) 
     
 
 
@@ -789,7 +808,8 @@ if __name__ == '__main__':
     
     
     ent="http://www.wikidata.org/entity/Q22"
-    ent="http://www.wikidata.org/entity/Q128109"
+    ent="http://www.wikidata.org/entity/Q5"
+    #ent="http://www.wikidata.org/entity/Q128109"
     labels = ep.getEnglishLabelsForEntity(ent)
     print(len(labels), labels)
     

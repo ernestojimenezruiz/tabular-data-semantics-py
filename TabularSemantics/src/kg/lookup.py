@@ -41,6 +41,8 @@ class Lookup(object):
             #Customize headers. For example dbpedia lookup returns xml by default
             req.add_header('Accept', 'application/json')
             
+            
+            #print(request.urlopen(req).read())
             response = json.loads(request.urlopen(req).read())
             
             return response
@@ -74,7 +76,11 @@ class DBpediaLookup(Lookup):
         
         
     def getURL(self):
-        return "http://lookup.dbpedia.org/api/search/KeywordSearch"
+        #return "http://lookup.dbpedia.org/api/search/KeywordSearch"
+        
+        #NEW lookup: https://github.com/dbpedia/lookup-application
+        return "http://akswnc7.informatik.uni-leipzig.de/lookup/api/search"
+        #?query=Berlin&typeName=City
         #TODO: prefix search allows for partial searches
         #return "http://lookup.dbpedia.org/api/search/PrefixSearch"
         
@@ -84,11 +90,23 @@ class DBpediaLookup(Lookup):
     
     def __createParams(self, query, limit, query_cls=''):
         
-        params = {
-            'QueryClass' : query_cls,
-            'QueryString': query,
-            'MaxHits': limit,
-        }
+        if query_cls=='':
+            params = {
+                'query': query,
+                'maxResults': limit,
+                'format': 'json',
+            }
+            
+        else:
+            params = {
+                'typeName' : query_cls,
+                'query': query,
+                'maxResults': limit,
+                'format': 'json'
+            }
+            #'QueryClass' : query_cls,
+            #'QueryString': query,
+            #'MaxHits': limit,
         
         return params
         
@@ -101,7 +119,7 @@ class DBpediaLookup(Lookup):
     '''
     Returns list of ordered entities according to relevance: dbpedia
     '''
-    def __extractKGEntities(self, json, filter=''):
+    def __extractKGEntities_OLD_LOOKUP(self, json, filter=''):
         
         entities = list()
         
@@ -135,6 +153,59 @@ class DBpediaLookup(Lookup):
         #    print(entity)    
         return entities
     
+    
+    
+    '''
+    Returns list of ordered entities according to relevance: dbpedia
+    '''
+    def __extractKGEntities(self, json, filter=''):
+        
+        entities = list()
+        
+        for element in json['docs']:
+            
+            types = set()
+            
+            #print(element)
+            
+            if 'type' in element:
+                for t in element['type']:
+                    if t != 'http://www.w3.org/2002/07/owl#Thing':
+                        if t.startswith('http://dbpedia.org/ontology/') or t.startswith('http://www.wikidata.org/entity/') or t.startswith('http://schema.org/'): 
+                            types.add(t)
+                
+            description=''
+            if 'comment' in element:
+                description = element['comment']
+                
+            ##Expected only one
+            uri=''
+            if 'resource' in element:
+                for u in element['resource']:
+                    uri=u
+                
+            ##Expected only one
+            label=''
+            if 'label' in element:
+                for l in element['label']:
+                    label=l
+            
+            kg_entity = KGEntity(
+                uri,
+                label,
+                description,
+                types,
+                self.getKGName()
+                )
+            
+            #We filter according to give URI
+            if filter=='' or uri==filter:
+                entities.append(kg_entity)
+            #print(kg_entity)
+        
+        #for entity in entities:
+        #    print(entity)    
+        return entities
     
     
     def getKGEntities(self, query, limit, filter=''):        

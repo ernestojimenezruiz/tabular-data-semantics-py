@@ -17,6 +17,7 @@ from kg.lookup import WikidataAPI
 from ontology.onto_access import DBpediaOntology
 from ontology.onto_access import SchemaOrgOntology
 from util.utilities import *
+import sys
 
 
 class Endpoint(object):
@@ -639,7 +640,7 @@ if __name__ == '__main__':
     init = time.time()
     
     entities=set()
-    #entities = ep.getEntitiesForDBPediaClass(cls, 50)
+    entities = ep.getEntitiesForDBPediaClass(cls, 100)
     print("Extracted entities: ", len(entities))
     for ent in entities:
         print(ent)
@@ -653,6 +654,11 @@ if __name__ == '__main__':
     
     #query = 'Taylor Swift'
     #cell = 'Scotland'
+    
+    
+    if True:
+        sys.exit(0) 
+    
     
     
     lookup = Lookup()

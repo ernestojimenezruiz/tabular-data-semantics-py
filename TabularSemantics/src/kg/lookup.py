@@ -76,11 +76,12 @@ class DBpediaLookup(Lookup):
         
         
     def getURL(self):
+        #OLD lookup: https://github.com/dbpedia/lookup
         #return "http://lookup.dbpedia.org/api/search/KeywordSearch"
         
         #NEW lookup: https://github.com/dbpedia/lookup-application
         return "http://akswnc7.informatik.uni-leipzig.de/lookup/api/search"
-        #?query=Berlin&typeName=City
+        
         #TODO: prefix search allows for partial searches
         #return "http://lookup.dbpedia.org/api/search/PrefixSearch"
         

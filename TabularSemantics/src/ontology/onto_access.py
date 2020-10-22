@@ -6,7 +6,7 @@ Created on 2 Jan 2019
 from owlready2 import *
 import rdflib
 from rdflib.plugins.sparql import prepareQuery
-
+import logging
 
 
 
@@ -17,6 +17,8 @@ class OntologyAccess(object):
 
 
     def __init__(self, urionto):
+        
+        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
         
         self.urionto = urionto        
         #List from owlready2
@@ -59,7 +61,10 @@ class OntologyAccess(object):
                 sync_reasoner_pellet() #it does add inferences to ontology
                 #sync_reasoner()  #HermiT doe snot work very well....  
                 #sync_reasoner(default_world)
-                print("Unsatisfiabilities: " + str(len(list(self.onto.inconsistent_classes()))))
+                unsat = len(list(self.onto.inconsistent_classes()))
+                logging.info("Ontology classified with Pellet")
+                if unsat > 0:
+                    logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
                 
                 
 
@@ -260,6 +265,15 @@ class OntologyAccess(object):
 
         return inv_uris
     
+    
+    def getClasses(self):        
+        return self.getOntology().classes()
+    
+    def getDataProperties(self):        
+        return self.getOntology().data_properties()
+    
+    def getObjectProperties(self):        
+        return self.getOntology().object_properties()
         
         
     def queryGraph(self, query):

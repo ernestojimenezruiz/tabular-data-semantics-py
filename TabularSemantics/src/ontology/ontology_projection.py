@@ -221,15 +221,26 @@ class OntologyProjection(object):
                 
         
         
-        #Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
+        #14. Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
         
         
+             
         
-        
-        
-        #Save projection graph
+        #15. SAVE PROJECTION GRAPH
         self.projection.serialize(file_projection, format='turtle')
         
+    
+    ##END CLASS CONSTRUCTOR
+    ######################
+    
+    
+    
+    ##Returns an rdflib Graph object
+    def getProjectionGraph(self):    
+        return self.projection
+    
+    
+    
     
     def addTriple(self, subject_uri, predicate_uri, object_uri):
         self.projection.add( (subject_uri, predicate_uri, object_uri) )

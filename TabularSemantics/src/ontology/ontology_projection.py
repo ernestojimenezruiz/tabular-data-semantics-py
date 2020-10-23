@@ -18,7 +18,7 @@ class OntologyProjection(object):
     '''
 
 
-    def __init__(self, urionto, file_projection, classify=False, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), annotation_properties=set(), memory_reasoner='10240'):
+    def __init__(self, urionto, file_projection, classify=False, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='10240'):
         
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
         
@@ -26,13 +26,17 @@ class OntologyProjection(object):
         
         #Parameters:
         # - If ontology is classified (impact of using HermiT)
-        # - Project only_taxonomy (subsumption)
+        # - Project only_taxonomy (rdfs:subclassOf and rdf:type)
+        # - bidirectional_taxonomy: additional links superclassOf and typeOf
+        # - include literals in graphs: data assertions and annotations
         # - avoid_properties: optional properties to avoid from projection
-        # - Annotation properties to consider
+        # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.)
+        # - Optional memory for teh reasoner (10240Mb=10Gb by default)
+        
         self.urionto = urionto
         self.bidirectional_taxonomy = bidirectional_taxonomy
         self.avoid_properties = avoid_properties
-        self.annotation_properties = annotation_properties
+        self.annotation_properties = additional_annotation_properties
         self.include_literals=include_literals
         
         
@@ -87,20 +91,21 @@ class OntologyProjection(object):
             
         
         
-        
         if (not only_taxonomy):
             
-            self.relation_dict={}
+            #We keep a dictionary for the triple subjects (URIref) and objects (URIref) of the active object property
+            #This dictionary will be useful to propagate inverses and subproperty relations 
+            self.triple_dict={}
             
             for prop in list(self.onto.getObjectProperties()):
                 
-                print(prop.iri)
+                #print(prop.iri)
                 
                 ## Filter properties accordingly
                 if prop.iri in self.avoid_properties:
                     continue
                 
-                self.relation_dict.clear()
+                self.triple_dict.clear()
                 
                 ## 6. Extract triples for domain and ranges for object properties (object)
                 #print(self.getQueryForDomainAndRange(prop.iri))
@@ -109,11 +114,11 @@ class OntologyProjection(object):
                  
                 
                 ## 7. Extract triples for restrictions (object)
-                ##RHS restrictions (some, all, cardinality) via subclassof 
+                ##RHS restrictions (some, all, cardinality) via subclassof and equivalence
                 results = self.onto.queryGraph(self.getQueryForRestrictionsRHS(prop.iri))
                 self.processPropertyResults(prop.iri, results)
                 
-                ##LHS restrictions (some, all, cardinality) via subclassof    
+                ##LHS restrictions (some, all, cardinality) via subclassof (considered above in case of equivalence)
                 results = self.onto.queryGraph(self.getQueryForRestrictionsLHS(prop.iri))
                 self.processPropertyResults(prop.iri, results)
                 
@@ -125,37 +130,61 @@ class OntologyProjection(object):
                 
                 ##EXTRACT BEFORE and propagate on the fly
                 ## 9. Extract named inverses and create/propagate new reversed triples. TBOx and ABox
-                ## 10. Propagate property equivalences and subsumptions (object and data). TBOx and ABox
+                results = self.onto.queryGraph(self.getQueryForInverses(prop.iri))
+                for row in results:
+                    for sub in self.triple_dict:
+                        for obj in self.triple_dict[sub]:
+                            self.addTriple(obj, row[0], sub) #Reversed triple. Already all as URIRef
+                        
                 
                 
-                print(self.relation_dict)
+                ## 10. Propagate property equivalences only (object). TBOx and ABox
+                results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(prop.iri))
+                for row in results:
+                    #print("\t" + row[0])
+                    for sub in self.triple_dict:
+                        for obj in self.triple_dict[sub]:
+                            self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
+                
+                
+                #print(self.triple_dict)
             
             
             #END OBJECT PROPERTIES
             
             
             
+            #11. LITERAL Triples via Data properties
             if self.include_literals:
                 
                 for prop in list(self.onto.getDataProperties()):
                     
-                    print(prop.iri)
+                    #print(prop.iri)
                     
                     ## Filter properties accordingly
                     if prop.iri in self.avoid_properties:
                         continue
                     
                     
-                    self.relation_dict.clear()
+                    self.triple_dict.clear()
                     
                     
-                    ## 8. Extract triples for role assertions (data)
+                    ## 11a. Extract triples for role assertions (data)
                     results = self.onto.queryGraph(self.getQueryDataRoleAssertions(prop.iri))
                     self.processPropertyResults(prop.iri, results)
                          
-                    ## 10. Propagate property equivalences and subsumptions (data). TBOx and ABox 
                     
-                    print(self.relation_dict)
+                    ## 11b. Propagate property equivalences only (data). ABox
+                    results = self.onto.queryGraph(self.getQueryForAtomicEquivalentDataProperties(prop.iri))
+                    for row in results:
+                        #print("\t" + row[0])
+                        for sub in self.triple_dict:
+                            for obj in self.triple_dict[sub]:
+                                self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
+                        
+                    
+                    
+                    #print(self.triple_dict)
                     
             
             ##End data properties
@@ -165,13 +194,15 @@ class OntologyProjection(object):
                 
                 
         
-        ##11. Create triples for standard annotations (classes and properties)
+        ##12. Create triples for standard annotations (classes and properties)
         #Read from file + load default ones.
         if self.include_literals:
             pass
         
         
         #Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
+        
+        
         
         
         
@@ -182,12 +213,15 @@ class OntologyProjection(object):
     def addTriple(self, subject_uri, predicate_uri, object_uri):
         self.projection.add( (subject_uri, predicate_uri, object_uri) )
     
+    
+    #Adds triples to graphs and updates property dictionary
     def processPropertyResults(self, prop_iri, results):
         for row in results:
             self.addTriple(row[0], URIRef(prop_iri), row[1])
-            if not row[0] in self.relation_dict:
-                self.relation_dict[row[0]]=set()
-            self.relation_dict[row[0]].add(row[1])
+            
+            if not row[0] in self.triple_dict:
+                self.triple_dict[row[0]]=set()
+            self.triple_dict[row[0]].add(row[1])
     
     
     
@@ -254,6 +288,19 @@ class OntologyProjection(object):
         ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .  
         }"""
         
+    def getQueryForAtomicEquivalentObjectProperties(self, prop_uri):
+        
+        return """SELECT DISTINCT ?p WHERE {{ 
+        ?p <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+        {{
+        ?p <http://www.w3.org/2002/07/owl#equivalentProperty> <{prop}> .
+        }}
+        UNION
+        {{
+        <{prop}> <http://www.w3.org/2002/07/owl#equivalentProperty> ?p .
+        }} 
+        }}""".format(prop=prop_uri)
+        
         
     def getQueryForAtomicDataPropertyEquivalences(self):
         
@@ -261,6 +308,21 @@ class OntologyProjection(object):
         ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> . 
         ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .  
         }"""
+        
+    def getQueryForAtomicEquivalentDataProperties(self, prop_uri):
+        
+        return """SELECT DISTINCT ?p WHERE {{ 
+        ?p <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+        {{
+        ?p <http://www.w3.org/2002/07/owl#equivalentProperty> <{prop}> .
+        }}
+        UNION
+        {{
+        <{prop}> <http://www.w3.org/2002/07/owl#equivalentProperty> ?p .
+        }} 
+        }}""".format(prop=prop_uri)
+        
+    
     
     def getQueryForClassTypes(self):
         
@@ -304,6 +366,23 @@ class OntologyProjection(object):
         ?r <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
         }}""".format(prop=prop_uri)
 
+
+
+    def getQueryForInverses(self, prop_uri):
+        
+        return """SELECT DISTINCT ?p WHERE {{ 
+        ?p <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+        {{
+        ?p <http://www.w3.org/2002/07/owl#inverseOf> <{prop}> .
+        }}
+        UNION
+        {{
+        <{prop}> <http://www.w3.org/2002/07/owl#inverseOf> ?p .
+        }} 
+        }}""".format(prop=prop_uri)
+        
+        
+        
 
     #Restrictions on the right hand side
     def getQueryForRestrictionsRHS(self, prop_uri):
@@ -357,7 +436,7 @@ if __name__ == '__main__':
     uri_onto = "/home/ernesto/ontologies/test_projection.owl"
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
-    projection = OntologyProjection(uri_onto, file_projection, classify=False, only_taxonomy=False, bidirectional_taxonomy=False)
+    projection = OntologyProjection(uri_onto, file_projection, classify=True, only_taxonomy=False, bidirectional_taxonomy=True)
      
     
         

@@ -58,11 +58,12 @@ class OntologyAccess(object):
             with self.onto:
                 # Is this wrt data assertions? Check if necessary
                 # infer_property_values = True, infer_data_property_values = True
+                logging.info("Classifying ontology with Pellet...")
                 sync_reasoner_pellet() #it does add inferences to ontology
                 #sync_reasoner()  #HermiT doe snot work very well....  
                 #sync_reasoner(default_world)
                 unsat = len(list(self.onto.inconsistent_classes()))
-                logging.info("Ontology classified with Pellet")
+                logging.info("Ontology successfully classified.")
                 if unsat > 0:
                     logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
                 

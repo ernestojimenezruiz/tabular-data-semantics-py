@@ -8,6 +8,9 @@ from ontology.onto_access import OntologyAccess
 from rdflib import Graph, URIRef, BNode, Literal
 from rdflib.namespace import RDF, RDFS, OWL
 import logging
+from constants import annotation_properties
+from docutils.nodes import row
+
 
 
 
@@ -25,13 +28,13 @@ class OntologyProjection(object):
         #owlready2.reasoning.JAVA_MEMORY='15360'
         
         #Parameters:
-        # - If ontology is classified (impact of using HermiT)
+        # - If ontology is classified (impact of using an OWL 2 Reasoner)
         # - Project only_taxonomy (rdfs:subclassOf and rdf:type)
         # - bidirectional_taxonomy: additional links superclassOf and typeOf
         # - include literals in graphs: data assertions and annotations
-        # - avoid_properties: optional properties to avoid from projection
-        # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.)
-        # - Optional memory for teh reasoner (10240Mb=10Gb by default)
+        # - avoid_properties: optional properties to avoid from projection (set of URIs, e.g., "http://www.semanticweb.org/myonto#prop1")
+        # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.). Set of URIs, e.g., "http://www.semanticweb.org/myonto#ann_prop1")
+        # - Optional memory for the reasoner (10240Mb=10Gb by default)
         
         self.urionto = urionto
         self.bidirectional_taxonomy = bidirectional_taxonomy
@@ -48,6 +51,11 @@ class OntologyProjection(object):
         ## 2. Initialize RDFlib graph
         self.projection = Graph()
         self.projection.bind("owl", "http://www.w3.org/2002/07/owl#")
+        self.projection.bind("skos", "http://www.w3.org/2004/02/skos/core#")
+        self.projection.bind("obo1", "http://www.geneontology.org/formats/oboInOwl#")
+        self.projection.bind("obo2", "http://www.geneontology.org/formats/oboInOWL#")
+        
+        
         
         #We use special constructors: owl2vec:superClassOf and owl2vec:typeOf 
         if self.bidirectional_taxonomy: 
@@ -107,13 +115,13 @@ class OntologyProjection(object):
                 
                 self.triple_dict.clear()
                 
-                ## 6. Extract triples for domain and ranges for object properties (object)
+                ## 7. Extract triples for domain and ranges for object properties (object)
                 #print(self.getQueryForDomainAndRange(prop.iri))
                 results = self.onto.queryGraph(self.getQueryForDomainAndRange(prop.iri))
                 self.processPropertyResults(prop.iri, results)
                  
                 
-                ## 7. Extract triples for restrictions (object)
+                ## 8. Extract triples for restrictions (object)
                 ##RHS restrictions (some, all, cardinality) via subclassof and equivalence
                 results = self.onto.queryGraph(self.getQueryForRestrictionsRHS(prop.iri))
                 self.processPropertyResults(prop.iri, results)
@@ -123,13 +131,12 @@ class OntologyProjection(object):
                 self.processPropertyResults(prop.iri, results)
                 
 
-                ## 8. Extract triples for role assertions (object and data)
+                ## 9. Extract triples for role assertions (object and data)
                 results = self.onto.queryGraph(self.getQueryObjectRoleAssertions(prop.iri))
                 self.processPropertyResults(prop.iri, results)
                 
                 
-                ##EXTRACT BEFORE and propagate on the fly
-                ## 9. Extract named inverses and create/propagate new reversed triples. TBOx and ABox
+                ## 10. Extract named inverses and create/propagate new reversed triples. TBOx and ABox
                 results = self.onto.queryGraph(self.getQueryForInverses(prop.iri))
                 for row in results:
                     for sub in self.triple_dict:
@@ -138,7 +145,7 @@ class OntologyProjection(object):
                         
                 
                 
-                ## 10. Propagate property equivalences only (object). TBOx and ABox
+                ## 11. Propagate property equivalences only (object). TBOx and ABox
                 results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(prop.iri))
                 for row in results:
                     #print("\t" + row[0])
@@ -151,10 +158,10 @@ class OntologyProjection(object):
             
             
             #END OBJECT PROPERTIES
+            ######################
             
             
-            
-            #11. LITERAL Triples via Data properties
+            #12. LITERAL Triples via Data properties
             if self.include_literals:
                 
                 for prop in list(self.onto.getDataProperties()):
@@ -187,17 +194,31 @@ class OntologyProjection(object):
                     #print(self.triple_dict)
                     
             
-            ##End data properties
+            ##End DATA properties
+            ######################
             
         
-        ##End non taxonomical relationships             
-                
+        ##End non TAXONOMICAL relationships             
+        ######################
                 
         
-        ##12. Create triples for standard annotations (classes and properties)
-        #Read from file + load default ones.
+        ##TODO
+        ##13. Create triples for standard annotations (classes and properties)
+        #Additional given annotation properties + default ones defined in annotation_properties
         if self.include_literals:
-            pass
+            
+            #We add default annotation properties
+            additional_annotation_properties.update(annotation_properties.values)
+            
+            for ann_prop_uri in additional_annotation_properties:
+                #print(ann_prop_uri)
+                
+                results = self.onto.queryGraph(self.getQueryForAnnotations(ann_prop_uri))
+                for row in results:
+                    #print("\t", row[0], row[1])
+                    self.addTriple(row[0], URIRef(ann_prop_uri), row[1])
+        
+                
         
         
         #Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
@@ -430,6 +451,14 @@ class OntologyProjection(object):
         }}
         }}""".format(prop=prop_uri)
 
+
+    def getQueryForAnnotations(self, ann_prop_uri):
+        
+        return """SELECT DISTINCT ?s ?o WHERE {{
+        ?s <{ann_prop}> ?o .  
+        }}""".format(ann_prop=ann_prop_uri)
+        
+        
 
 if __name__ == '__main__':
     

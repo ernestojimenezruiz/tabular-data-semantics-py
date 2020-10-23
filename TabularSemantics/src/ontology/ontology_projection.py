@@ -31,9 +31,9 @@ class OntologyProjection(object):
         # - If ontology is classified (impact of using an OWL 2 Reasoner)
         # - Project only_taxonomy (rdfs:subclassOf and rdf:type)
         # - bidirectional_taxonomy: additional links superclassOf and typeOf
-        # - include literals in graphs: data assertions and annotations
-        # - avoid_properties: optional properties to avoid from projection (set of URIs, e.g., "http://www.semanticweb.org/myonto#prop1")
-        # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.). Set of URIs, e.g., "http://www.semanticweb.org/myonto#ann_prop1")
+        # - include literals in projection graph: data assertions and annotations
+        # - avoid_properties: optional properties to avoid from projection (expected set of (string) URIs, e.g., "http://www.semanticweb.org/myonto#prop1")
+        # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.). Expected a set of (string) URIs, e.g., "http://www.semanticweb.org/myonto#ann_prop1")
         # - Optional memory for the reasoner (10240Mb=10Gb by default)
         
         self.urionto = urionto

@@ -10,6 +10,7 @@ from rdflib.namespace import RDF, RDFS, OWL
 import logging
 from constants import annotation_properties
 from docutils.nodes import row
+from xgboost.rabit.doc.conf import todo_include_todos
 
 
 
@@ -21,7 +22,7 @@ class OntologyProjection(object):
     '''
 
 
-    def __init__(self, urionto, file_projection, classify=False, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='10240'):
+    def __init__(self, urionto, classify=False, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='10240'):
         
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
         
@@ -37,17 +38,32 @@ class OntologyProjection(object):
         # - Optional memory for the reasoner (10240Mb=10Gb by default)
         
         self.urionto = urionto
+                
+        self.only_taxonomy = only_taxonomy
         self.bidirectional_taxonomy = bidirectional_taxonomy
-        self.avoid_properties = avoid_properties
-        self.annotation_properties = additional_annotation_properties
         self.include_literals=include_literals
+        
+        self.avoid_properties = avoid_properties
+        self.additional_annotation_properties = additional_annotation_properties
+        
         
         
         ## 1. Create ontology using ontology_access
         self.onto = OntologyAccess(urionto)
-        self.onto.loadOntology(classify, memory_reasoner) 
+        self.onto.loadOntology(classify, memory_reasoner)
+    
+    ##End constructor
+    
+    
+    
+    
+    ##########################
+    #### EXTRACT PROJECTION
+    ##########################
+    def extractProjection(self):
         
-        
+        logging.info("Creating ontology graph projection...")
+            
         ## 2. Initialize RDFlib graph
         self.projection = Graph()
         self.projection.bind("owl", "http://www.w3.org/2002/07/owl#")
@@ -99,7 +115,7 @@ class OntologyProjection(object):
             
         
         
-        if (not only_taxonomy):
+        if (not self.only_taxonomy):
             
             #We keep a dictionary for the triple subjects (URIref) and objects (URIref) of the active object property
             #This dictionary will be useful to propagate inverses and subproperty relations 
@@ -202,15 +218,15 @@ class OntologyProjection(object):
         ######################
                 
         
-        ##TODO
+        
         ##13. Create triples for standard annotations (classes and properties)
         #Additional given annotation properties + default ones defined in annotation_properties
         if self.include_literals:
             
-            #We add default annotation properties
-            additional_annotation_properties.update(annotation_properties.values)
+            #We add default annotation properties from constants.annotation_properties
+            self.additional_annotation_properties.update(annotation_properties.values)
             
-            for ann_prop_uri in additional_annotation_properties:
+            for ann_prop_uri in self.additional_annotation_properties:
                 #print(ann_prop_uri)
                 
                 results = self.onto.queryGraph(self.getQueryForAnnotations(ann_prop_uri))
@@ -218,19 +234,16 @@ class OntologyProjection(object):
                     #print("\t", row[0], row[1])
                     self.addTriple(row[0], URIRef(ann_prop_uri), row[1])
         
-                
+        
+        #End optional literal additions        
+        
+        logging.info("Projection created into a Graph object (RDFlib library)")
         
         
-        #14. Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
-        
-        
-             
-        
-        #15. SAVE PROJECTION GRAPH
-        self.projection.serialize(file_projection, format='turtle')
+       
         
     
-    ##END CLASS CONSTRUCTOR
+    ##END PROJECTOR
     ######################
     
     
@@ -239,6 +252,12 @@ class OntologyProjection(object):
     def getProjectionGraph(self):    
         return self.projection
     
+    ##Serialises the projection into a file (turtle format) 
+    def saveProjectionGraph(self, file_projection):
+    
+        #Saves projection
+        self.projection.serialize(file_projection, format='turtle')
+        logging.info("Projection saved into turtle file: " + file_projection)
     
     
     
@@ -470,13 +489,27 @@ class OntologyProjection(object):
         }}""".format(ann_prop=ann_prop_uri)
         
         
+    
+    
+    #todo_include_todos    
+    #14. Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
+    #get support to create structures list of classes, and store them as necessary. OWL2Vec reads them as strings, check that
+        
+    
+    
+    
+    
+        
 
 if __name__ == '__main__':
     
     uri_onto = "/home/ernesto/ontologies/test_projection.owl"
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
-    projection = OntologyProjection(uri_onto, file_projection, classify=True, only_taxonomy=False, bidirectional_taxonomy=True)
+    projection = OntologyProjection(uri_onto, classify=True, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True)
+    projection.extractProjection()
+    #projection.getProjectionGraph()  gets RDFLib's Graph object with projection
+    projection.saveProjectionGraph(file_projection)
      
     
         

@@ -5,8 +5,9 @@ Created on 16 Oct 2020
 '''
 
 from ontology.onto_access import OntologyAccess
-from rdflib import Graph, URIRef, BNode, Literal
-from rdflib.namespace import RDF, RDFS, OWL
+from rdflib import Graph, URIRef
+#, BNode, Literal
+from rdflib.namespace import RDF, RDFS
 import logging
 from constants import annotation_properties
 ######
@@ -139,15 +140,35 @@ class OntologyProjection(object):
                 #print(self.getQueryForDomainAndRange(prop.iri))
                 results = self.onto.queryGraph(self.getQueryForDomainAndRange(prop.iri))
                 self.processPropertyResults(prop.iri, results)
-                 
+                
+                ##7a. Complex domain and ranges
+                results_domain = self.onto.queryGraph(self.getQueryForComplexDomain(prop.iri))
+                results_range = self.onto.queryGraph(self.getQueryForComplexRange(prop.iri))
+                for row_domain in results_domain:
+                    for row_range in results_range:
+                        self.addTriple(row_domain[0], URIRef(prop.iri), row_range[0])
+            
+                        if not row_domain[0] in self.triple_dict:
+                            self.triple_dict[row_domain[0]]=set()
+                        self.triple_dict[row_domain[0]].add(row_range[0])
+                
                 
                 ## 8. Extract triples for restrictions (object)
-                ##RHS restrictions (some, all, cardinality) via subclassof and equivalence
+                ##8.a RHS restrictions (some, all, cardinality) via subclassof and equivalence
                 results = self.onto.queryGraph(self.getQueryForRestrictionsRHS(prop.iri))
                 self.processPropertyResults(prop.iri, results)
                 
-                ##LHS restrictions (some, all, cardinality) via subclassof (considered above in case of equivalence)
+                ##8.b Complex restrictions RHS: "R some (A or B)"
+                results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHS(prop.iri))
+                self.processPropertyResults(prop.iri, results)
+                
+                
+                ##8.c LHS restrictions (some, all, cardinality) via subclassof (considered above in case of equivalence)
                 results = self.onto.queryGraph(self.getQueryForRestrictionsLHS(prop.iri))
+                self.processPropertyResults(prop.iri, results)
+                
+                ##8.d Complex restrictions LHS: "R some (A or B)"
+                results = self.onto.queryGraph(self.getQueryForComplexRestrictionsLHS(prop.iri))
                 self.processPropertyResults(prop.iri, results)
                 
 
@@ -318,7 +339,7 @@ class OntologyProjection(object):
     
     def extractTriplesFromComplexAxioms(self):
         #Using sparql it is harder to get this type of axioms
-        #Axioms involving intersection.
+        #Axioms involving intersection with unions.
         #e.g. A equiv B and R some D    
         for cls in self.onto.getClasses():
             
@@ -329,7 +350,7 @@ class OntologyProjection(object):
                 try:          
                     ##cls_exp is of the  form A and (R some B) and ... as it contains attribute "get_is_a"
                     ##Typically composed by atomic concepts and restrictions
-                    for cls_exp2 in cls_exp.get_is_a():
+                    for cls_exp2 in cls_exp.Classes:  ##also accessible with .Classes
                         try:
                             #print(cls_exp2)
                             #Case of atomic class
@@ -340,21 +361,36 @@ class OntologyProjection(object):
                                 
                         except AttributeError:
                             try:
-                                #Case of restrictions with object property and atomic class target
-                                if (not self.only_taxonomy) and (not cls_exp2.property.iri in self.avoid_properties):                                
-                                    self.addTriple(URIRef(cls.iri), URIRef(cls_exp2.property.iri), URIRef(cls_exp2.value.iri))
+                                #Case of restrictions with object property
+                                if (not self.only_taxonomy) and (not cls_exp2.property.iri in self.avoid_properties):
                                     
-                                    ##Propagate equivalences and inverses for cls_exp2.property
-                                    ## 12a. Extract named inverses and create/propagate new reversed triples.
-                                    results = self.onto.queryGraph(self.getQueryForInverses(cls_exp2.property.iri))
-                                    for row in results:
-                                        self.addTriple(URIRef(cls_exp2.value.iri), row[0], URIRef(cls.iri)) #Reversed triple. Already all as URIRef
-                        
-                                    ## 12b. Propagate property equivalences only (object).
-                                    results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(cls_exp2.property.iri))
-                                    for row in results:
-                                        self.addTriple(URIRef(cls.iri), row[0], URIRef(cls_exp2.value.iri)) #Inferred triple. Already all as URIRef
-
+                                    targets = set()
+                                    
+                                    #UnionOf or IntersectionOf atomic classes
+                                    if hasattr(cls_exp2.value, "Classes"):
+                                        for target_cls in cls_exp2.value.Classes:
+                                            if hasattr(target_cls, "iri"):
+                                                targets.add(target_cls.iri)
+                                        
+                                    #Atomic tragte class
+                                    elif hasattr(cls_exp2.value, "iri"):
+                                        targets.add(cls_exp2.value.iri)
+                                        
+                                    for target_cls in targets:
+                                        
+                                        self.addTriple(URIRef(cls.iri), URIRef(cls_exp2.property.iri), URIRef(target_cls))
+                                            
+                                        ##Propagate equivalences and inverses for cls_exp2.property
+                                        ## 12a. Extract named inverses and create/propagate new reversed triples.
+                                        results = self.onto.queryGraph(self.getQueryForInverses(cls_exp2.property.iri))
+                                        for row in results:
+                                            self.addTriple(URIRef(target_cls), row[0], URIRef(cls.iri)) #Reversed triple. Already all as URIRef
+                            
+                                        ## 12b. Propagate property equivalences only (object).
+                                        results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(cls_exp2.property.iri))
+                                        for row in results:
+                                            self.addTriple(URIRef(cls.iri), row[0], URIRef(target_cls)) #Inferred triple. Already all as URIRef
+                                    ##end targets
                                     
                             except AttributeError:
                                 pass  # Not atomic nor supported restriction
@@ -450,10 +486,11 @@ class OntologyProjection(object):
     def getQueryForClassTypes(self):
         
         return """SELECT ?s ?o WHERE { ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o .
-        ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#NamedIndividual> . 
+        ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#NamedIndividual> .
+        ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> . 
         FILTER (isIRI(?s) && isIRI(?o))
         }"""
-        #?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        
     
         
     def getQueryForAtomicIndividualSameAs(self):
@@ -479,6 +516,32 @@ class OntologyProjection(object):
         }}""".format(prop=prop_uri)
             
         
+    
+    def getQueryForComplexDomain(self, prop_uri):
+        return """SELECT DISTINCT ?d where {{
+        {{
+        <{prop}> <http://www.w3.org/2000/01/rdf-schema#domain> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?d ] ] ] .
+        }}
+        UNION
+        {{
+        <{prop}> <http://www.w3.org/2000/01/rdf-schema#domain> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?d ] ] ] .
+        }}
+        filter( isIRI( ?d ) )
+        }}""".format(prop=prop_uri)
+    
+    
+    def getQueryForComplexRange(self, prop_uri):
+        return """SELECT DISTINCT ?r where {{
+        {{
+        <{prop}> <http://www.w3.org/2000/01/rdf-schema#range> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?r ] ] ] .
+        }}
+        UNION
+        {{
+        <{prop}> <http://www.w3.org/2000/01/rdf-schema#range> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?r ] ] ] .
+        }}
+        filter( isIRI( ?r ) )
+        }}""".format(prop=prop_uri)
+    
     
         
     def getQueryForDomainAndRange(self, prop_uri):
@@ -508,7 +571,7 @@ class OntologyProjection(object):
         
         
 
-    #Restrictions on the right hand side
+    #Restrictions on the right hand side: A sub/equiv R some A. ?p is sub or equiv
     def getQueryForRestrictionsRHS(self, prop_uri):
         
         return """SELECT DISTINCT ?s ?o WHERE {{ 
@@ -532,7 +595,7 @@ class OntologyProjection(object):
         }}""".format(prop=prop_uri)
         #
         
-    #Restrictions on the left hand side
+    #Restrictions on the left hand side:  R some A sub A
     def getQueryForRestrictionsLHS(self, prop_uri):
         
         #Required to include subclassof between ?bn and ?s to avoid redundancy
@@ -556,6 +619,82 @@ class OntologyProjection(object):
         FILTER (isIRI(?s) && isIRI(?o))
         }}""".format(prop=prop_uri)
         #
+    
+    
+        #Restrictions on the right hand side: A sub/equiv R some (C or D)
+    def getQueryForComplexRestrictionsRHS(self, prop_uri):
+        
+        return """SELECT DISTINCT ?s ?o WHERE {{ 
+        ?s ?p ?bn .
+        ?bn <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Restriction> . 
+        ?bn <http://www.w3.org/2002/07/owl#onProperty> <{prop}> .
+        ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#someValuesFrom> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#allValuesFrom> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#onClass> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#someValuesFrom> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#allValuesFrom> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#onClass> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        FILTER (isIRI(?s) && isIRI(?o))        
+        }}""".format(prop=prop_uri)
+        #
+        
+    #Restrictions on the left hand side: R some (C or D) sub A
+    def getQueryForComplexRestrictionsLHS(self, prop_uri):
+        
+        #Required to include subclassof between ?bn and ?s to avoid redundancy
+        return """SELECT DISTINCT ?s ?o WHERE {{ 
+        ?bn <http://www.w3.org/2000/01/rdf-schema#subClassOf> ?s . 
+        ?bn <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Restriction> . 
+        ?bn <http://www.w3.org/2002/07/owl#onProperty> <{prop}> .
+        ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#someValuesFrom> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#allValuesFrom> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#onClass> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#someValuesFrom> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#allValuesFrom> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        UNION
+        {{
+        ?bn <http://www.w3.org/2002/07/owl#onClass> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?o ] ] ] .
+        }}
+        FILTER (isIRI(?s) && isIRI(?o))
+        }}""".format(prop=prop_uri)
+        #    
+        
+    
 
     def getQueryForAnnotations(self, ann_prop_uri):
         

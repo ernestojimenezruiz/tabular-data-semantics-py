@@ -230,9 +230,14 @@ class OntologyAccess(object):
         
         domain_uris = set()
         
-        for cls in prop.domain:
-            domain_uris.add(cls.iri)
-
+        for cls in prop.domain:                       
+            #for c in cls.Classes:
+            #    print(c)
+            try:
+                domain_uris.add(cls.iri)
+            except AttributeError:
+                pass
+        
         return domain_uris
 
 
@@ -252,7 +257,11 @@ class OntologyAccess(object):
         range_uris = set()
         
         for cls in prop.range:
-            range_uris.add(cls.iri)  
+            
+            try:
+                range_uris.add(cls.iri)  
+            except AttributeError:
+                pass
 
         return range_uris
     
@@ -473,6 +482,7 @@ if __name__ == '__main__':
             try:
                 #print("aaaa"+str(cls_exp.type))
                 print("get_is_a(): " + str(cls_exp.get_is_a()))
+                print("Classes: " + str(cls_exp.Classes))
                 for a in cls_exp.get_is_a():
                     print(a)
             except AttributeError:
@@ -511,6 +521,7 @@ if __name__ == '__main__':
             try:
                 #print("aaaa"+str(cls_exp.type))
                 print("get_is_a(): " + str(cls_exp.get_is_a()))
+                print("Classes: " + str(cls_exp.Classes))
                 for a in cls_exp.get_is_a():
                     print(a)
             except AttributeError:

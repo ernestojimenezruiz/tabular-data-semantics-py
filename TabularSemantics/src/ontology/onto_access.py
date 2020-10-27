@@ -396,8 +396,8 @@ if __name__ == '__main__':
         print(dir(ax))
         print(ax.subclasses())
         #print(ax.ancestors())
-        print(ax.value)
-        print(ax.type)
+        #print(ax.value)
+        #print(ax.type)
         print()
         
     
@@ -467,25 +467,76 @@ if __name__ == '__main__':
         print("parents: " + str(onto_access.getOntology().get_parents_of(cls)))
         print("isa: " + str(cls.is_a))  #Filter isa?
         for cls_exp in cls.is_a:
+            
+            print(dir(cls_exp))
+            
+            try:
+                #print("aaaa"+str(cls_exp.type))
+                print("get_is_a(): " + str(cls_exp.get_is_a()))
+                for a in cls_exp.get_is_a():
+                    print(a)
+            except AttributeError:
+                pass
+            
+            
             try:
                 print("\t" + cls_exp.name)   ##How to access restrictions?
             except AttributeError:
-                #dir(to get all objects)
-                print("\t"+ str(cls_exp))
-                #print("\t\t"+ str(cls_exp.ancestors))
-                print("\t\t"+ str(cls_exp.cardinality))
-                #print("\t\t"+ str(cls_exp.is_a))
-                print("\t\t"+ str(cls_exp.property))
-                #print("\t\t"+ str(cls_exp.subclasses))
-                print("\t\t restriction: "+ str(cls_exp.type))
-                print("\t\t"+ str(cls_exp.value))
-                print("\t\t\t"+ str(dir(cls_exp.value)))
-                #try access iri otherwise pass as above              
-                #print(\n', 'cardinality', 'destroy', 'is_a', 'ontology', 'property', 'storid', 'subclasses', 'type', 'value')
-                #some: 24, only: 25
                 
+                try:
+                    #dir(to get all objects)
+                    print("\t"+ str(cls_exp))
+                    #print("\t\t"+ str(cls_exp.ancestors))
+                    print("\t\t"+ str(cls_exp.cardinality))
+                    #print("\t\t"+ str(cls_exp.is_a))
+                    print("\t\t"+ str(cls_exp.property))
+                    #print("\t\t"+ str(cls_exp.subclasses))
+                    print("\t\t restriction: "+ str(cls_exp.type))
+                    print("\t\t"+ str(cls_exp.value))
+                    print("\t\t\t"+ str(dir(cls_exp.value)))
+                    #try access iri otherwise pass as above              
+                    #print(\n', 'cardinality', 'destroy', 'is_a', 'ontology', 'property', 'storid', 'subclasses', 'type', 'value')
+                    #some: 24, only: 25
+                except AttributeError:
+                    pass
             
         print("equiv: " + str(cls.equivalent_to))
+        
+        for cls_exp in cls.equivalent_to:
+            
+            print(dir(cls_exp))
+            
+            #print("aaa" + str(cls_exp.get_is_a()))
+            
+            try:
+                #print("aaaa"+str(cls_exp.type))
+                print("get_is_a(): " + str(cls_exp.get_is_a()))
+                for a in cls_exp.get_is_a():
+                    print(a)
+            except AttributeError:
+                pass
+            try:
+                print("\t" + cls_exp.name)   ##How to access restrictions?
+            except AttributeError:
+                
+                try:
+                    #dir(to get all objects)
+                    print("\t"+ str(cls_exp))
+                    print("\t"+ str(cls_exp.type))
+                    #print("\t\t"+ str(cls_exp.ancestors))
+                    print("\t\t"+ str(cls_exp.cardinality))
+                    #print("\t\t"+ str(cls_exp.is_a))
+                    print("\t\t"+ str(cls_exp.property))
+                    #print("\t\t"+ str(cls_exp.subclasses))
+                    print("\t\t restriction: "+ str(cls_exp.type))
+                    print("\t\t"+ str(cls_exp.value))
+                    print("\t\t\t"+ str(dir(cls_exp.value)))
+                    #try access iri otherwise pass as above              
+                    #print(\n', 'cardinality', 'destroy', 'is_a', 'ontology', 'property', 'storid', 'subclasses', 'type', 'value')
+                    #some: 24, only: 25
+                except AttributeError:
+                    pass
+        
         print("disjoint: " + str(cls.disjoints())) #returns pairs <cls, disj> -> ignore?
         print("instances: " + str(cls.instances()))
         print()

@@ -9,8 +9,8 @@ from rdflib import Graph, URIRef, BNode, Literal
 from rdflib.namespace import RDF, RDFS, OWL
 import logging
 from constants import annotation_properties
-from docutils.nodes import row
-from xgboost.rabit.doc.conf import todo_include_todos
+######
+
 
 
 
@@ -84,6 +84,7 @@ class OntologyProjection(object):
         ## 3. Extract triples for subsumption (optionaly bidirectional: superclass).
         results = self.onto.queryGraph(self.getQueryForAtomicClassSubsumptions())
         for row in results:
+            
             self.addSubsumptionTriple(row[0], row[1])
             
             if self.bidirectional_taxonomy:
@@ -93,6 +94,7 @@ class OntologyProjection(object):
         ## 4. Triples for equivalences (split into 2 subsumptions). (no propagation)
         results = self.onto.queryGraph(self.getQueryForAtomicClassEquivalences())
         for row in results:
+            #print(row[0], row[1])
             self.addSubsumptionTriple(row[0], row[1])
             self.addSubsumptionTriple(row[1], row[0])
             
@@ -112,7 +114,9 @@ class OntologyProjection(object):
         for row in results:
             self.addSameAsTriple(row[0], row[1])
             self.addSameAsTriple(row[1], row[0])
-            
+        
+        
+       
         
         
         if (not self.only_taxonomy):
@@ -177,7 +181,15 @@ class OntologyProjection(object):
             ######################
             
             
-            #12. LITERAL Triples via Data properties
+            ##12. Complex but common axioms like
+            ## A sub/equiv A and R some B and etc.
+            ##Propagate equivalences and inverses
+            self.extractTriplesFromComplexAxioms()
+            
+             
+            
+            
+            #13. LITERAL Triples via Data properties
             if self.include_literals:
                 
                 for prop in list(self.onto.getDataProperties()):
@@ -192,12 +204,12 @@ class OntologyProjection(object):
                     self.triple_dict.clear()
                     
                     
-                    ## 11a. Extract triples for role assertions (data)
+                    ## 13a. Extract triples for role assertions (data)
                     results = self.onto.queryGraph(self.getQueryDataRoleAssertions(prop.iri))
                     self.processPropertyResults(prop.iri, results)
                          
                     
-                    ## 11b. Propagate property equivalences only (data). ABox
+                    ## 13b. Propagate property equivalences only (data). ABox
                     results = self.onto.queryGraph(self.getQueryForAtomicEquivalentDataProperties(prop.iri))
                     for row in results:
                         #print("\t" + row[0])
@@ -216,10 +228,10 @@ class OntologyProjection(object):
         
         ##End non TAXONOMICAL relationships             
         ######################
-                
         
         
-        ##13. Create triples for standard annotations (classes and properties)
+        
+        ##14. Create triples for standard annotations (classes and properties)
         #Additional given annotation properties + default ones defined in annotation_properties
         if self.include_literals:
             
@@ -231,20 +243,24 @@ class OntologyProjection(object):
                 
                 results = self.onto.queryGraph(self.getQueryForAnnotations(ann_prop_uri))
                 for row in results:
-                    #print("\t", row[0], row[1])
-                    self.addTriple(row[0], URIRef(ann_prop_uri), row[1])
-        
+                    #Filter by language
+                    try:
+                        #Keep labels in English or not specified
+                        if row[1].language=="en" or row[1].language==None:
+                            self.addTriple(row[0], URIRef(ann_prop_uri), row[1])
+                            #print(row[1].language)
+                    except AttributeError:
+                        pass
         
         #End optional literal additions        
         
         logging.info("Projection created into a Graph object (RDFlib library)")
         
         
-       
-        
-    
     ##END PROJECTOR
     ######################
+    
+    
     
     
     
@@ -299,11 +315,66 @@ class OntologyProjection(object):
     
     
     
+    
+    def extractTriplesFromComplexAxioms(self):
+        #Using sparql it is harder to get this type of axioms
+        #Axioms involving intersection.
+        #e.g. A equiv B and R some D    
+        for cls in self.onto.getClasses():
+            
+            expressions = set()
+            expressions.update(cls.is_a, cls.equivalent_to)
+                                    
+            for cls_exp in expressions:
+                try:          
+                    ##cls_exp is of the  form A and (R some B) and ... as it contains attribute "get_is_a"
+                    ##Typically composed by atomic concepts and restrictions
+                    for cls_exp2 in cls_exp.get_is_a():
+                        try:
+                            #print(cls_exp2)
+                            #Case of atomic class
+                            self.addSubsumptionTriple(URIRef(cls.iri), URIRef(cls_exp2.iri))
+                            
+                            if self.bidirectional_taxonomy:
+                                self.addInverseSubsumptionTriple(URIRef(cls.iri), URIRef(cls_exp2.iri))
+                                
+                        except AttributeError:
+                            try:
+                                #Case of restrictions with object property and atomic class target
+                                if (not self.only_taxonomy) and (not cls_exp2.property.iri in self.avoid_properties):                                
+                                    self.addTriple(URIRef(cls.iri), URIRef(cls_exp2.property.iri), URIRef(cls_exp2.value.iri))
+                                    
+                                    ##Propagate equivalences and inverses for cls_exp2.property
+                                    ## 12a. Extract named inverses and create/propagate new reversed triples.
+                                    results = self.onto.queryGraph(self.getQueryForInverses(cls_exp2.property.iri))
+                                    for row in results:
+                                        self.addTriple(URIRef(cls_exp2.value.iri), row[0], URIRef(cls.iri)) #Reversed triple. Already all as URIRef
+                        
+                                    ## 12b. Propagate property equivalences only (object).
+                                    results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(cls_exp2.property.iri))
+                                    for row in results:
+                                        self.addTriple(URIRef(cls.iri), row[0], URIRef(cls_exp2.value.iri)) #Inferred triple. Already all as URIRef
+
+                                    
+                            except AttributeError:
+                                pass  # Not atomic nor supported restriction
+                            
+                except AttributeError:
+                    pass ##No right expressions
+                
+            
+        
+    
+    
+    
+    #isIRI,isBlank,isLiteral, isNumeric.
+    
     def getQueryForAtomicClassSubsumptions(self):
         
         return """SELECT ?s ?o WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#subClassOf> ?o .
         ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> . 
         ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .  
+        FILTER (isIRI(?s) && isIRI(?o))
         }"""
         
     def getQueryForAtomicObjectPropertySubsumptions(self):
@@ -327,7 +398,8 @@ class OntologyProjection(object):
         
         return """SELECT ?s ?o WHERE { ?s <http://www.w3.org/2002/07/owl#equivalentClass> ?o .
         ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> . 
-        ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .  
+        ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> . 
+        FILTER (isIRI(?s) && isIRI(?o)) 
         }"""
         
     
@@ -379,9 +451,9 @@ class OntologyProjection(object):
         
         return """SELECT ?s ?o WHERE { ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o .
         ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#NamedIndividual> . 
-        ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .  
+        FILTER (isIRI(?s) && isIRI(?o))
         }"""
-    
+        #?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
     
         
     def getQueryForAtomicIndividualSameAs(self):
@@ -413,9 +485,10 @@ class OntologyProjection(object):
         
         return """SELECT DISTINCT ?d ?r WHERE {{ <{prop}> <http://www.w3.org/2000/01/rdf-schema#domain> ?d . 
         <{prop}> <http://www.w3.org/2000/01/rdf-schema#range> ?r .
-        ?d <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
-        ?r <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        FILTER (isIRI(?d) && isIRI(?r))
         }}""".format(prop=prop_uri)
+        #?d <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+        #?r <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
 
 
 
@@ -455,8 +528,9 @@ class OntologyProjection(object):
         {{
         ?bn <http://www.w3.org/2002/07/owl#onClass> ?o .
         }}
+        FILTER (isIRI(?s) && isIRI(?o))        
         }}""".format(prop=prop_uri)
-        
+        #
         
     #Restrictions on the left hand side
     def getQueryForRestrictionsLHS(self, prop_uri):
@@ -479,8 +553,9 @@ class OntologyProjection(object):
         {{
         ?bn <http://www.w3.org/2002/07/owl#onClass> ?o .
         }}
+        FILTER (isIRI(?s) && isIRI(?o))
         }}""".format(prop=prop_uri)
-
+        #
 
     def getQueryForAnnotations(self, ann_prop_uri):
         
@@ -510,7 +585,9 @@ if __name__ == '__main__':
     projection.extractProjection()
     #projection.getProjectionGraph()  gets RDFLib's Graph object with projection
     projection.saveProjectionGraph(file_projection)
-     
+    
+    
+    #projection.extractTriplesFromComplexAxioms() 
     
         
         

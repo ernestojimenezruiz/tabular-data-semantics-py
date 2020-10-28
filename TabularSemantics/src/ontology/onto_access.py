@@ -55,28 +55,42 @@ class OntologyAccess(object):
             #sync_reasoner_pellet(self.world) 
 
             
-            with self.onto:
-                # Is this wrt data assertions? Check if necessary
-                # infer_property_values = True, infer_data_property_values = True
-                logging.info("Classifying ontology with Pellet...")
-                sync_reasoner_pellet() #it does add inferences to ontology
-                #sync_reasoner()  #HermiT doe snot work very well....  
-                #sync_reasoner(default_world)
-                unsat = len(list(self.onto.inconsistent_classes()))
-                logging.info("Ontology successfully classified.")
-                if unsat > 0:
-                    logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
+            try:
+                with self.onto:
+                    # Is this wrt data assertions? Check if necessary
+                    # infer_property_values = True, infer_data_property_values = True
+                    logging.info("Classifying ontology with Pellet...")
+                    sync_reasoner_pellet() #it does add inferences to ontology
+                    #sync_reasoner()  #HermiT doe snot work very well....  
+                    #sync_reasoner(default_world)
+                    unsat = len(list(self.onto.inconsistent_classes()))
+                    logging.info("Ontology successfully classified.")
+                    if unsat > 0:
+                        logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
+            except:
                 
+                logging.info("Classifying with Pellet failed.")
+                try:
+                    ##We use HermiT if Pellet fails
+                    with self.onto:          
+                        logging.info("Classifying ontology with HermiT...")
+                        sync_reasoner() #it does add inferences to ontology
+    
+                        unsat = len(list(self.onto.inconsistent_classes()))
+                        logging.info("Ontology successfully classified.")
+                        if unsat > 0:
+                            logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
                 
+                except:
+                    #Do not classify if both HermiT and Pellet fail
+                    logging.info("Classifying with HermiT failed.")
+                    
 
+        ##End Classification
+        ####
             
         #report problem with unsat (Nothing not declared....)
         #print(list(self.onto.inconsistent_classes()))
-        #print(dir(default_world))
-        #The .get_parents_of(), .get_instances_of() and .get_children_of() 
-        #methods of an ontology can be used to query the hierarchical relations, limited to those defined in the given ontology. 
-        #This is commonly used after reasoning, to obtain the inferred hierarchical relations.
-        
         
         self.graph = default_world.as_rdflib_graph()
         #self.graph = self.world.as_rdflib_graph()

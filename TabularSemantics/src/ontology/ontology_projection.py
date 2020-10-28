@@ -10,6 +10,7 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
 import logging
 from constants import annotation_properties
+import time
 ######
 
 
@@ -369,10 +370,10 @@ class OntologyProjection(object):
                                     #UnionOf or IntersectionOf atomic classes
                                     if hasattr(cls_exp2.value, "Classes"):
                                         for target_cls in cls_exp2.value.Classes:
-                                            if hasattr(target_cls, "iri"):
+                                            if hasattr(target_cls, "iri"):  ##other expressions ignored
                                                 targets.add(target_cls.iri)
                                         
-                                    #Atomic tragte class
+                                    #Atomic target class
                                     elif hasattr(cls_exp2.value, "iri"):
                                         targets.add(cls_exp2.value.iri)
                                         
@@ -720,10 +721,23 @@ if __name__ == '__main__':
     uri_onto = "/home/ernesto/ontologies/test_projection.owl"
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
-    projection = OntologyProjection(uri_onto, classify=True, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True)
+    path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
+    
+    uri_onto = path + "helis_v1.00.origin.owl"
+    file_projection  = path + "helis_v1.00.projection.ttl"
+    
+    start_time = time.time()
+    projection = OntologyProjection(uri_onto, classify=True, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, memory_reasoner='13351')
+    logging.info("Time loading ontology (and classifying): --- %s seconds ---" % (time.time() - start_time))
+    
+    start_time = time.time()
     projection.extractProjection()
+    logging.info("Time extracting projection: --- %s seconds ---" % (time.time() - start_time))
+    
+    start_time = time.time()
     #projection.getProjectionGraph()  gets RDFLib's Graph object with projection
     projection.saveProjectionGraph(file_projection)
+    logging.info("Time saving projection: --- %s seconds ---" % (time.time() - start_time))
     
     
     #projection.extractTriplesFromComplexAxioms() 

@@ -93,6 +93,7 @@ class OntologyAccess(object):
         #print(list(self.onto.inconsistent_classes()))
         
         self.graph = default_world.as_rdflib_graph()
+        logging.info("There are {} triples in the ontology".format(len(self.graph)))
         #self.graph = self.world.as_rdflib_graph()
 
         
@@ -298,6 +299,9 @@ class OntologyAccess(object):
     
     def getObjectProperties(self):        
         return self.getOntology().object_properties()
+    
+    def getIndividuals(self):        
+        return self.getOntology().individuals()
         
         
     def queryGraph(self, query):
@@ -414,21 +418,21 @@ if __name__ == '__main__':
     #'storid', 'variables', 'world']
     
     
-    for ax in onto_access.getOntology().general_axioms():
-        print(ax)
-        print(dir(ax))
-        print(ax.subclasses())
+    #for ax in onto_access.getOntology().general_axioms():
+    #    print(ax)
+    #    print(dir(ax))
+    #    print(ax.subclasses())
         #print(ax.ancestors())
         #print(ax.value)
         #print(ax.type)
-        print()
+    #    print()
         
     
     #for t in onto_access.getOntology().get_triples():
     #    print(t)
     
-    #if True:
-    #    sys.exit()
+    if True:
+        sys.exit()
         
     
     

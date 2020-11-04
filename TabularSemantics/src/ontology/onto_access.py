@@ -7,13 +7,20 @@ from owlready2 import *
 import rdflib
 from rdflib.plugins.sparql import prepareQuery
 import logging
+from enum import Enum
 
+
+class Reasoner(Enum):
+    HERMIT=0
+    PELLET=1
+    NONE=2
 
 
 class OntologyAccess(object):
     '''
     classdocs
     '''
+   
 
 
     def __init__(self, urionto):
@@ -31,7 +38,7 @@ class OntologyAccess(object):
     
     
     
-    def loadOntology(self, classify, memory_java='10240'):   
+    def loadOntology(self, reasoner=Reasoner.NONE, memory_java='10240'):   
         
         #self.world = World()
         
@@ -41,40 +48,34 @@ class OntologyAccess(object):
         #self.onto = self.world.get_ontology(self.urionto).load()
         #self.onto.load()
         
-        #self.classifiedOnto = get_ontology(self.urionto + '_classified')        
-        if classify:
+        #self.classifiedOnto = get_ontology(self.urionto + '_classified')
+        owlready2.reasoning.JAVA_MEMORY=memory_java
+        owlready2.set_log_level(9)     
             
-            ##Memory to call HermiT or Pellet
-            owlready2.reasoning.JAVA_MEMORY=memory_java
-            owlready2.set_log_level(9) 
-            
-            #sync_reasoner()
-            #self.inferences =  get_ontology("http://inferrences/")
-            
-            #print("HERMIT")
-            #sync_reasoner_pellet(self.world) 
-
+        if reasoner==Reasoner.PELLET:
             
             try:
-                with self.onto:
+                with self.onto:  #it does add inferences to ontology
+                    
                     # Is this wrt data assertions? Check if necessary
                     # infer_property_values = True, infer_data_property_values = True
                     logging.info("Classifying ontology with Pellet...")
                     sync_reasoner_pellet() #it does add inferences to ontology
-                    #sync_reasoner()  #HermiT doe snot work very well....  
-                    #sync_reasoner(default_world)
+                   
                     unsat = len(list(self.onto.inconsistent_classes()))
                     logging.info("Ontology successfully classified.")
                     if unsat > 0:
                         logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
-            except:
-                
+            except:                              
                 logging.info("Classifying with Pellet failed.")
-                try:
-                    ##We use HermiT if Pellet fails
-                    with self.onto:          
+        
+        elif reasoner==Reasoner.HERMIT:
+                            
+                try:                    
+                    with self.onto:  #it does add inferences to ontology
+                                  
                         logging.info("Classifying ontology with HermiT...")
-                        sync_reasoner() #it does add inferences to ontology
+                        sync_reasoner() #HermiT doe snot work very well.... 
     
                         unsat = len(list(self.onto.inconsistent_classes()))
                         logging.info("Ontology successfully classified.")
@@ -82,10 +83,9 @@ class OntologyAccess(object):
                             logging.warning("There are " + str(unsat) + " unsatisfiabiable classes.")
                 
                 except:
-                    #Do not classify if both HermiT and Pellet fail
+                    
                     logging.info("Classifying with HermiT failed.")
                     
-
         ##End Classification
         ####
             

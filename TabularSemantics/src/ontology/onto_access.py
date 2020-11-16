@@ -11,9 +11,10 @@ from enum import Enum
 
 
 class Reasoner(Enum):
-    HERMIT=0
-    PELLET=1
-    NONE=2
+    HERMIT=0 #Not really adding the right set of entailments
+    PELLET=1 #Slow for large ontologies
+    STRUCTURAL=2  #Basic domain/range propagation
+    NONE=3 #No reasoning
 
 
 class OntologyAccess(object):

@@ -12,6 +12,7 @@ from rdflib.namespace import RDF, RDFS
 import logging
 from constants import annotation_properties
 import time
+from docutils.nodes import row
 ######
 
 
@@ -49,6 +50,7 @@ class OntologyProjection(object):
         self.avoid_properties = avoid_properties
         self.additional_annotation_properties = additional_annotation_properties
         
+        self.propagate_domain_range = (reasoner==Reasoner.STRUCTURAL)
         
         
         ## 1. Create ontology using ontology_access
@@ -108,7 +110,7 @@ class OntologyProjection(object):
         
         
         '''
-        THIS CODE IS one oder of magnitude SLOWER as it goes instance by instance
+        THIS CODE IS one order of magnitude SLOWER as it goes instance by instance
         start_time = time.time()
         logging.info("\tExtracting class membership and sameAs triples")        
         
@@ -161,95 +163,121 @@ class OntologyProjection(object):
         
        
         
+        #We check if only taxonomy when adding the triple. We want to check the use of properties to propagate domains and ranges (not well treated by HermiT and slow with Pellet) 
+        #if (not self.only_taxonomy):
+            
+        #We keep a dictionary for the triple subjects (URIref) and objects (URIref) of the active object property
+        #This dictionary will be useful to propagate inverses and subproperty relations 
+        self.triple_dict={}
         
-        if (not self.only_taxonomy):
+        
+        ##To propagate ranges and domains
+        #1. To use in first iterations
+        self.domains=set()
+        self.ranges=set()
+        #2. To use in complex restriction method
+        self.domains_dict={}
+        self.ranges_dict={}
             
-            #We keep a dictionary for the triple subjects (URIref) and objects (URIref) of the active object property
-            #This dictionary will be useful to propagate inverses and subproperty relations 
-            self.triple_dict={}
-            self.domains=set()
-            self.ranges=set()
+            
+        ####################
+        #OBJECT PROPERTIES
+        for prop in list(self.onto.getObjectProperties()):
+            
+            ## Filter properties accordingly
+            if prop.iri in self.avoid_properties:
+                continue
             
             
-            ####################
-            ##OBJECT PROPERTIES
-            for prop in list(self.onto.getObjectProperties()):
+            start_time = time.time()
+            logging.info("\tExtracting triples associated to " + str(prop.name))
+            #print(prop.iri)
+            
+            
+            
+            self.domains_dict[prop.iri]=set()
+            self.ranges_dict[prop.iri]=set()
+            
+            
                 
-                start_time = time.time()
-                logging.info("\tExtracting triples associated to " + str(prop.name))
-                #print(prop.iri)
+            self.triple_dict.clear()
+            ##We keep domains and ranges to propagate the inference in case the reasoner fails or HermiT is used (it misses many inferences)
+            ##Useful to infer subsumptions and class types
+            self.domains.clear()
+            self.ranges.clear()
                 
-                ## Filter properties accordingly
-                if prop.iri in self.avoid_properties:
-                    continue
+            ## 7. Extract triples for domain and ranges for object properties (object)
+            #print(self.getQueryForDomainAndRange(prop.iri))
+            #logging.info("\t\tExtracting domain and range for " + str(prop.name))
+            results = self.onto.queryGraph(self.getQueryForDomainAndRange(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, True)
+            
+            #To propagate domain/range entailment. Only atomic domains
+            results_domain = self.onto.queryGraph(self.getQueryForDomain(prop.iri))
+            results_range = self.onto.queryGraph(self.getQueryForRange(prop.iri))
+            for row_domain in results_domain:
+                self.domains.add(row_domain[0])
+                self.domains_dict[prop.iri].add(row_domain[0])
                 
-                self.triple_dict.clear()
-                ##We keep domains and ranges to propagate the inference in case the reasoner fails or HermiT is used (it misses many inferences)
-                ##Useful to infer subsumptions and class types
-                self.domains.clear()
-                self.ranges.clear()
+            for row_range in results_range:
+                self.ranges.add(row_range[0])
+                self.ranges_dict[prop.iri].add(row_range[0])
+            
                 
-                ## 7. Extract triples for domain and ranges for object properties (object)
-                #print(self.getQueryForDomainAndRange(prop.iri))
-                #logging.info("\t\tExtracting domain and range for " + str(prop.name))
-                results = self.onto.queryGraph(self.getQueryForDomainAndRange(prop.iri))
-                for row in results:
-                    self.domains.add(row[0])
-                    self.ranges.add(row[1])
-                    
-                self.processPropertyResults(prop.iri, results)
-                
-                ##7a. Complex domain and ranges
-                #logging.info("\t\tExtracting complex domain and range for " + str(prop.name))
-                results_domain = self.onto.queryGraph(self.getQueryForComplexDomain(prop.iri))
-                results_range = self.onto.queryGraph(self.getQueryForComplexRange(prop.iri))
+            ##7a. Complex domain and ranges
+            #logging.info("\t\tExtracting complex domain and range for " + str(prop.name))
+            results_domain = self.onto.queryGraph(self.getQueryForComplexDomain(prop.iri))
+            results_range = self.onto.queryGraph(self.getQueryForComplexRange(prop.iri))
+            #for row_range in results_range:
+            #    self.ranges.add(row_range[0])         
+            for row_domain in results_domain:
+                #self.domains.add(row_domain[0])         
                 for row_range in results_range:
-                    self.ranges.add(row_range[0])
                     
-                for row_domain in results_domain:
-                    self.domains.add(row_domain[0])         
-                    for row_range in results_range:
-                        self.addTriple(row_domain[0], URIRef(prop.iri), row_range[0])
+                    self.addTriple(row_domain[0], URIRef(prop.iri), row_range[0])
             
-                        if not row_domain[0] in self.triple_dict:
-                            self.triple_dict[row_domain[0]]=set()
-                        self.triple_dict[row_domain[0]].add(row_range[0])
+                    if not row_domain[0] in self.triple_dict:
+                        self.triple_dict[row_domain[0]]=set()
+                    self.triple_dict[row_domain[0]].add(row_range[0])
+                
+            
+            
+            ## 8. Extract triples for restrictions (object)
+            ##8.a RHS restrictions (some, all, cardinality) via subclassof and equivalence
+            #logging.info("\t\tExtracting RHS restrictions for " + str(prop.name))
+            results = self.onto.queryGraph(self.getQueryForRestrictionsRHSSubClassOf(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, True)
+            results = self.onto.queryGraph(self.getQueryForRestrictionsRHSEquivalent(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, True)
+                
+            ##Not optimal to query via SPARQL: integrated in complex axioms method
+            ##8.b Complex restrictions RHS: "R some (A or B)"
+            #logging.info("\t\tExtracting complex RHS restrictions for " + str(prop.name))
+            #results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHSSubClassOf(prop.iri))
+            #self.processPropertyResults(prop.iri, results)
+            ##results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHSEquivalent(prop.iri))
+            ##self.processPropertyResults(prop.iri, results)
                 
                 
-                ## 8. Extract triples for restrictions (object)
-                ##8.a RHS restrictions (some, all, cardinality) via subclassof and equivalence
-                #logging.info("\t\tExtracting RHS restrictions for " + str(prop.name))
-                results = self.onto.queryGraph(self.getQueryForRestrictionsRHSSubClassOf(prop.iri))
-                self.processPropertyResults(prop.iri, results)
-                results = self.onto.queryGraph(self.getQueryForRestrictionsRHSEquivalent(prop.iri))
-                self.processPropertyResults(prop.iri, results)
+            ##8.c LHS restrictions (some, all, cardinality) via subclassof (considered above in case of equivalence)
+            #logging.info("\t\tExtracting LHS restrictions for " + str(prop.name))
+            results = self.onto.queryGraph(self.getQueryForRestrictionsLHS(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, True)
                 
-                ##Not optimal to query via SPARQL: integrated in complex axioms method
-                ##8.b Complex restrictions RHS: "R some (A or B)"
-                #logging.info("\t\tExtracting complex RHS restrictions for " + str(prop.name))
-                #results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHSSubClassOf(prop.iri))
-                #self.processPropertyResults(prop.iri, results)
-                ##results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHSEquivalent(prop.iri))
-                ##self.processPropertyResults(prop.iri, results)
-                
-                
-                ##8.c LHS restrictions (some, all, cardinality) via subclassof (considered above in case of equivalence)
-                #logging.info("\t\tExtracting LHS restrictions for " + str(prop.name))
-                results = self.onto.queryGraph(self.getQueryForRestrictionsLHS(prop.iri))
-                self.processPropertyResults(prop.iri, results)
-                
-                ##8.d Complex restrictions LHS: "R some (A or B)"
-                #logging.info("\t\tExtracting Complex LHS restrictions for " + str(prop.name))
-                results = self.onto.queryGraph(self.getQueryForComplexRestrictionsLHS(prop.iri))
-                self.processPropertyResults(prop.iri, results)
+            ##8.d Complex restrictions LHS: "R some (A or B)"
+            #logging.info("\t\tExtracting Complex LHS restrictions for " + str(prop.name))
+            results = self.onto.queryGraph(self.getQueryForComplexRestrictionsLHS(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, True)
                 
 
-                ## 9. Extract triples for role assertions (object and data)
-                #logging.info("\t\tExtracting triples for role assertions for " + str(prop.name))
-                results = self.onto.queryGraph(self.getQueryObjectRoleAssertions(prop.iri))
-                self.processPropertyResults(prop.iri, results)
+            ## 9. Extract triples for role assertions (object and data)
+            #logging.info("\t\tExtracting triples for role assertions for " + str(prop.name))
+            results = self.onto.queryGraph(self.getQueryObjectRoleAssertions(prop.iri))
+            self.processPropertyResults(prop.iri, results, False, True)
                 
-                
+            
+            
+            if (not self.only_taxonomy):    
                 ## 10. Extract named inverses and create/propagate new reversed triples. TBOx and ABox
                 #logging.info("\t\tExtracting inverses for " + str(prop.name))
                 results = self.onto.queryGraph(self.getQueryForInverses(prop.iri))
@@ -257,9 +285,9 @@ class OntologyProjection(object):
                     for sub in self.triple_dict:
                         for obj in self.triple_dict[sub]:
                             self.addTriple(obj, row[0], sub) #Reversed triple. Already all as URIRef
-                        
-                
-                
+                            
+                    
+                    
                 ## 11. Propagate property equivalences only (object). TBOx and ABox
                 #logging.info("\t\tExtracting equivalences for " + str(prop.name))
                 results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(prop.iri))
@@ -268,82 +296,96 @@ class OntologyProjection(object):
                     for sub in self.triple_dict:
                         for obj in self.triple_dict[sub]:
                             self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
-                
-                
-                #print(self.triple_dict)
-                logging.info("\t\tTime extracting triples for property: %s seconds " % (time.time() - start_time))
+                    
+            
+            #print(self.triple_dict)
+            logging.info("\t\tTime extracting triples for property: %s seconds " % (time.time() - start_time))
             
             
-            #END OBJECT PROPERTIES
-            ######################
-            
-            
-            
-            
-            ##12. Complex but common axioms like
-            ##1. A sub/equiv A and R some B and etc.
-            ##2. A sub/equiv R some (B or D)
-            ##Propagate equivalences and inverses
-            start_time = time.time()
-            logging.info("\tExtracting complex equivalence axioms")
-            self.extractTriplesFromComplexAxioms()
-            logging.info("\t\tTime extracting complex equivalence axioms: %s seconds " % (time.time() - start_time))
+        #END OBJECT PROPERTIES
+        ######################
+        
+        
+        
              
             
             
             
                 
-            start_time = time.time()
-            logging.info("\tExtracting data property assertions")
-                
-            ####################
-            ##DATA PROPERTIES
-            for prop in list(self.onto.getDataProperties()):
+        start_time = time.time()
+        logging.info("\tExtracting data property assertions")
+        ####################
+        ##DATA PROPERTIES
+        for prop in list(self.onto.getDataProperties()):
                     
-                #print(prop.iri)
+            #print(prop.iri)
                     
-                ## Filter properties accordingly
-                if prop.iri in self.avoid_properties:
-                    continue
-                    
-                
-                
-                
-                
-                    
-                self.triple_dict.clear()
+            ## Filter properties accordingly
+            if prop.iri in self.avoid_properties:
+                continue
+            
+            
+            self.domains_dict[prop.iri]=set()
                     
                 
-                #13. LITERAL Triples via Data properties            
-                if self.include_literals:
+            self.triple_dict.clear()
+            self.domains.clear()
+            self.ranges.clear()
+                
+            #12. LITERAL Triples via Data properties            
+            #if self.include_literals:
+             
+            ## 12a. Domain
+            results_domain = self.onto.queryGraph(self.getQueryForDomain(prop.iri))            
+            for row_domain in results_domain:
+                self.domains.add(row_domain[0])
+                self.domains_dict[prop.iri].add(row_domain[0])
+            
+            
+            ## 12b. Restrictions
+            results = self.onto.queryGraph(self.getQueryForDataRestrictionsRHSSubClassOf(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, False)  ##Propagates domain and range but avoids adding the triple
+            results = self.onto.queryGraph(self.getQueryForDataRestrictionsRHSEquivalent(prop.iri))
+            self.processPropertyResults(prop.iri, results, True, False)
+            
+                
+            ## 12c. Extract triples for role assertions (data)
+            results = self.onto.queryGraph(self.getQueryDataRoleAssertions(prop.iri))
+            self.processPropertyResults(prop.iri, results, False, self.include_literals)
+                                       
                     
-                    ## 13a. Extract triples for role assertions (data)
-                    results = self.onto.queryGraph(self.getQueryDataRoleAssertions(prop.iri))
-                    self.processPropertyResults(prop.iri, results)
-                         
-                    
-                    ## 13b. Propagate property equivalences only (data). ABox
-                    results = self.onto.queryGraph(self.getQueryForAtomicEquivalentDataProperties(prop.iri))
-                    for row in results:
-                        #print("\t" + row[0])
-                        for sub in self.triple_dict:
-                            for obj in self.triple_dict[sub]:
-                                self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
+            ## 12d. Propagate property equivalences only (data). ABox
+            results = self.onto.queryGraph(self.getQueryForAtomicEquivalentDataProperties(prop.iri))
+            for row in results:
+                #print("\t" + row[0])
+                for sub in self.triple_dict:
+                    for obj in self.triple_dict[sub]:
+                        self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
                         
                     
                     
-                #print(self.triple_dict)
+            #print(self.triple_dict)
                     
-            logging.info("\t\tTime extracting data property assertions: %s seconds " % (time.time() - start_time))
+        logging.info("\t\tTime extracting data property assertions: %s seconds " % (time.time() - start_time))
                     
             
-            ##End DATA properties
-            ######################
-            
-        
-        ##End non TAXONOMICAL relationships             
+        ##End DATA properties
         ######################
         
+        
+        
+        ######################################
+        ##13. Complex but common axioms like (involving both object and data properties)
+        ##1. A sub/equiv A and R some B and etc.
+        ##2. A sub/equiv R some (B or D)
+        ##Propagate equivalences and inverses
+        start_time = time.time()
+        logging.info("\tExtracting complex equivalence axioms")
+        self.extractTriplesFromComplexAxioms()
+        logging.info("\t\tTime extracting complex equivalence axioms: %s seconds " % (time.time() - start_time))
+        ######################################
+        
+              
         
         ##ANNOTATIONS
         ##14. Create triples for standard annotations (classes and properties)
@@ -402,15 +444,75 @@ class OntologyProjection(object):
         self.projection.add( (subject_uri, predicate_uri, object_uri) )
     
     
-    #Adds triples to graphs and updates property dictionary
-    def processPropertyResults(self, prop_iri, results):
-        for row in results:
-            self.addTriple(row[0], URIRef(prop_iri), row[1])
-            
-            if not row[0] in self.triple_dict:
-                self.triple_dict[row[0]]=set()
-            self.triple_dict[row[0]].add(row[1])
+       
     
+    #Adds triples to graphs and updates property dictionary
+    def processPropertyResults(self, prop_iri, results, are_tbox_results, add_triple):
+        
+        for row in results:
+            
+            if (not self.only_taxonomy) & add_triple:
+                
+                self.addTriple(row[0], URIRef(prop_iri), row[1])
+                
+                if not row[0] in self.triple_dict:
+                    self.triple_dict[row[0]]=set()
+                self.triple_dict[row[0]].add(row[1])
+            
+        
+            ##Approximate reasoning propagation domain and ranges
+            if self.propagate_domain_range:
+                
+                if are_tbox_results:
+                    
+                    self.propagateDomainTbox(row[0])
+                    try:
+                        self.propagateRangeTbox(row[1])
+                    except: ##case of dataproperty restrictions
+                        pass
+                
+                else:
+                    self.propagateDomainAbox(row[0])
+                    try:
+                        self.propagateRangeAbox(row[1])
+                    except: ##case of dataproperty restrictions
+                        pass
+    
+    
+    
+    
+    def propagateDomainTbox(self, source):
+        for domain_cls in self.domains:
+            self.addSubsumptionTriple(source, domain_cls)
+            if self.bidirectional_taxonomy:
+                self.addInverseSubsumptionTriple(source, domain_cls)
+    
+    
+    def propagateRangeTbox(self, target):
+    
+        #Ranges will be empty for the data properties
+        for range_cls in self.ranges:
+            self.addSubsumptionTriple(target, range_cls)
+            if self.bidirectional_taxonomy:
+                self.addInverseSubsumptionTriple(target, range_cls)
+                            
+            
+    
+    def propagateDomainAbox(self, source):
+        
+        for domain_cls in self.domains:
+            self.addClassTypeTriple(source, domain_cls)
+            if self.bidirectional_taxonomy:
+                self.addInverseClassTypeTriple(source, domain_cls)
+    
+    def propagateRangeAbox(self, target):              
+                    
+        for range_cls in self.ranges:
+            self.addClassTypeTriple(target, range_cls)
+            if self.bidirectional_taxonomy:
+                self.addInverseClassTypeTriple(target, range_cls)
+                            
+        
     
     
     
@@ -498,6 +600,17 @@ class OntologyProjection(object):
         try:
                                     
             targets = set()
+            
+            property_iri = cls_exp_rest.property.iri
+            
+            ##TODO Propagate domain for both data properties and object properties
+            for domain_cls in self.domains_dict[property_iri]:
+                self.addSubsumptionTriple(URIRef(cls.iri), domain_cls)
+                if self.bidirectional_taxonomy:
+                    self.addInverseSubsumptionTriple(URIRef(cls.iri), domain_cls)
+            
+            
+            
                                     
             #UnionOf or IntersectionOf atomic classes in target of restriction
             if hasattr(cls_exp_rest.value, "Classes"):
@@ -507,25 +620,30 @@ class OntologyProjection(object):
                                         
             #Atomic target class in target of restrictions
             elif hasattr(cls_exp_rest.value, "iri"):
-                targets.add(cls_exp_rest.value.iri)
-            ##
-            #else: case of data type property or another restrictions
-            # Get the case of datatype property? Ask to structures 
-            #TODO
+                
+                target_cls_iri = cls_exp_rest.value.iri
+                
+                targets.add(target_cls_iri)
+                
+                #TODO Propagate range only in this case
+                for range_cls in self.ranges_dict[property_iri]:
+                    self.addSubsumptionTriple(URIRef(target_cls_iri), range_cls)
+                    if self.bidirectional_taxonomy:
+                        self.addInverseSubsumptionTriple(URIRef(target_cls_iri), range_cls)
                                     
                                         
             for target_cls in targets:
                                         
-                self.addTriple(URIRef(cls.iri), URIRef(cls_exp_rest.property.iri), URIRef(target_cls))
+                self.addTriple(URIRef(cls.iri), URIRef(property_iri), URIRef(target_cls))
                                             
                 ##Propagate equivalences and inverses for cls_exp2.property
                 ## 12a. Extract named inverses and create/propagate new reversed triples.
-                results = self.onto.queryGraph(self.getQueryForInverses(cls_exp_rest.property.iri))
+                results = self.onto.queryGraph(self.getQueryForInverses(property_iri))
                 for row in results:
                     self.addTriple(URIRef(target_cls), row[0], URIRef(cls.iri)) #Reversed triple. Already all as URIRef
                             
                 ## 12b. Propagate property equivalences only (object).
-                results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(cls_exp_rest.property.iri))
+                results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(property_iri))
                 for row in results:
                     self.addTriple(URIRef(cls.iri), row[0], URIRef(target_cls)) #Inferred triple. Already all as URIRef
             ##end targets
@@ -742,6 +860,23 @@ class OntologyProjection(object):
         }}""".format(prop=prop_uri)
     
     
+    
+    def getQueryForDomain(self, prop_uri):
+        
+        return """SELECT DISTINCT ?d WHERE {{ <{prop}> <http://www.w3.org/2000/01/rdf-schema#domain> ?d . 
+        FILTER (isIRI(?d))
+        }}""".format(prop=prop_uri)
+    
+    
+    def getQueryForRange(self, prop_uri):
+        
+        return """SELECT DISTINCT ?r WHERE {{  
+        <{prop}> <http://www.w3.org/2000/01/rdf-schema#range> ?r .
+        FILTER (isIRI(?r))
+        }}""".format(prop=prop_uri)
+    
+    
+    
         
     def getQueryForDomainAndRange(self, prop_uri):
         
@@ -815,6 +950,31 @@ class OntologyProjection(object):
     #?bn <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Restriction> .
     #?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
     #?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+    
+    
+    #Restrictions on the right hand side: A sub R some A. 
+    def getQueryForDataRestrictionsRHSSubClassOf(self, prop_uri):
+        
+        return """SELECT DISTINCT ?s WHERE {{ 
+        ?s <http://www.w3.org/2000/01/rdf-schema#subClassOf> ?bn . 
+        ?bn <http://www.w3.org/2002/07/owl#onProperty> <{prop}> .
+        FILTER (isIRI(?s))        
+        }}""".format(prop=prop_uri)
+        
+
+    #Restrictions on the right hand side: A equiv R some A.
+    def getQueryForDataRestrictionsRHSEquivalent(self, prop_uri):
+        
+        return """SELECT DISTINCT ?s WHERE {{ 
+        ?s <http://www.w3.org/2002/07/owl#equivalentClass> ?bn . 
+        ?bn <http://www.w3.org/2002/07/owl#onProperty> <{prop}> .
+        FILTER (isIRI(?s))
+        }}""".format(prop=prop_uri)
+    
+    
+    
+    
+    
     
         
     #Restrictions on the left hand side:  R some A sub A
@@ -979,10 +1139,10 @@ if __name__ == '__main__':
     uri_onto = "/home/ernesto/ontologies/test_projection.owl"
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
-    path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
+    #path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
     
-    uri_onto = path + "helis_v1.00.origin.owl"
-    file_projection  = path + "helis_v1.00.projection.ttl"
+    #uri_onto = path + "helis_v1.00.origin.owl"
+    #file_projection  = path + "helis_v1.00.projection.ttl"
     
     
     #uri_onto = path + "foodon-merged.owl"
@@ -995,9 +1155,10 @@ if __name__ == '__main__':
     start_time = time.time()
     
     #Reasoner.HERMIT
+    #Reasoner.STRUCTURAL
     #Reasoner.PELLET
     #Reasoner.NONE
-    projection = OntologyProjection(uri_onto, reasoner=Reasoner.NONE, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, memory_reasoner='13351')
+    projection = OntologyProjection(uri_onto, reasoner=Reasoner.STRUCTURAL, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, memory_reasoner='13351')
     logging.info("Time loading ontology (and classifying): --- %s seconds ---" % (time.time() - start_time))
     
     start_time = time.time()

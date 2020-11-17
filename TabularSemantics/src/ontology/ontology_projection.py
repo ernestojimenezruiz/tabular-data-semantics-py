@@ -1154,11 +1154,27 @@ if __name__ == '__main__':
     
     start_time = time.time()
     
-    #Reasoner.HERMIT
-    #Reasoner.STRUCTURAL
-    #Reasoner.PELLET
-    #Reasoner.NONE
-    projection = OntologyProjection(uri_onto, reasoner=Reasoner.STRUCTURAL, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, memory_reasoner='13351')
+    #PARAMETERS:
+    #1. reasoner    
+    #Reasoner.STRUCTURAL (incomplete reasoner, only propagates domain and ranges, but it may be sufficient for OWL2Vec)
+    #Reasoner.PELLET (working well but slow for big ontologies, best choice for complete classification and class membership)
+    #Reasoner.HERMIT  (not working very well with OWLready)
+    #Reasoner.NONE (no reasoning)
+    #2. only_taxonomy
+    #True: the projection will only include rdfs:subClassOf and rdf:type triples
+    #False: the projection will also include other relationships
+    #3. bidirectional_taxonomy
+    #True: includes custom  inverse taxonomy triples with owl2vec:superClassOf and owl2vec:typeOf
+    #False
+    #4.include_literals
+    #True the graph will also include triples involving data property assertions and annotations
+    #False
+    #5. avoid_properties
+    # Optional set of properties to be avoided from the projection     
+    #6. additional_annotation_properties
+    # Optional set of additional annotations to be included in case the lexical information (e.g. labels and synonyms are not present in standard annotation properties)
+    #7. memory_reasoner (necessary for Hermit and Pellet as they are internally called as Java applications)    
+    projection = OntologyProjection(uri_onto, reasoner=Reasoner.STRUCTURAL, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='13351')
     logging.info("Time loading ontology (and classifying): --- %s seconds ---" % (time.time() - start_time))
     
     start_time = time.time()
@@ -1166,7 +1182,9 @@ if __name__ == '__main__':
     logging.info("Time extracting projection: --- %s seconds ---" % (time.time() - start_time))
     
     start_time = time.time()
-    #projection.getProjectionGraph()  gets RDFLib's Graph object with projection
+    #Gets RDFLib's Graph object with projection
+    #projection.getProjectionGraph()
+    #Saves projection (optional)  
     projection.saveProjectionGraph(file_projection)
     logging.info("Time saving projection: --- %s seconds ---" % (time.time() - start_time))
     

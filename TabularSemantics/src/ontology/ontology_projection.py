@@ -21,11 +21,33 @@ from docutils.nodes import row
 
 
 class OntologyProjection(object):
+    
     '''
-    classdocs
+    Light ontology projection tailored to OWL2Vec
+    
+    
+    PARAMETERS:
+    0. urionto: URI of the ontology to project
+    1. reasoner    
+    Reasoner.STRUCTURAL (incomplete reasoner, only propagates domain and ranges, but it may be sufficient for OWL2Vec)
+    Reasoner.PELLET (working well but slow for big ontologies, best choice for complete classification and class membership)
+    Reasoner.HERMIT  (not working very well with OWLready)
+    Reasoner.NONE (no reasoning)
+    2. only_taxonomy
+    True: the projection will only include rdfs:subClassOf and rdf:type triples
+    False: the projection will also include other relationships
+    3. bidirectional_taxonomy
+    True: includes custom  inverse taxonomy triples with owl2vec:superClassOf and owl2vec:typeOf
+    False
+    4.include_literals
+    True the graph will also include triples involving data property assertions and annotations
+    False
+    5. avoid_properties
+     Optional set of properties to be avoided from the projection     
+    6. additional_annotation_properties
+     Optional set of additional annotations to be included in case the lexical information (e.g. labels and synonyms are not present in standard annotation properties)
+    7. memory_reasoner (necessary for Hermit and Pellet as they are internally called as Java applications)  
     '''
-
-
     def __init__(self, urionto, reasoner=Reasoner.NONE, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='10240'):
         
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
@@ -288,7 +310,7 @@ class OntologyProjection(object):
                             
                     
                     
-                ## 11. Propagate property equivalences only (object). TBOx and ABox
+                ## 11. Propagate property equivalences only not subproperties (object). TBOx and ABox
                 #logging.info("\t\tExtracting equivalences for " + str(prop.name))
                 results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(prop.iri))
                 for row in results:
@@ -354,7 +376,7 @@ class OntologyProjection(object):
             self.processPropertyResults(prop.iri, results, False, self.include_literals)
                                        
                     
-            ## 12d. Propagate property equivalences only (data). ABox
+            ## 12d. Propagate property equivalences only not subproperties (data). ABox
             results = self.onto.queryGraph(self.getQueryForAtomicEquivalentDataProperties(prop.iri))
             for row in results:
                 #print("\t" + row[0])
@@ -483,6 +505,10 @@ class OntologyProjection(object):
     
     def propagateDomainTbox(self, source):
         for domain_cls in self.domains:
+            
+            if str(source) == str(domain_cls):
+                continue
+            
             self.addSubsumptionTriple(source, domain_cls)
             if self.bidirectional_taxonomy:
                 self.addInverseSubsumptionTriple(source, domain_cls)
@@ -490,8 +516,11 @@ class OntologyProjection(object):
     
     def propagateRangeTbox(self, target):
     
-        #Ranges will be empty for the data properties
         for range_cls in self.ranges:
+            
+            if str(target) == str(range_cls):
+                continue
+                
             self.addSubsumptionTriple(target, range_cls)
             if self.bidirectional_taxonomy:
                 self.addInverseSubsumptionTriple(target, range_cls)
@@ -604,10 +633,16 @@ class OntologyProjection(object):
             property_iri = cls_exp_rest.property.iri
             
             ##TODO Propagate domain for both data properties and object properties
-            for domain_cls in self.domains_dict[property_iri]:
-                self.addSubsumptionTriple(URIRef(cls.iri), domain_cls)
-                if self.bidirectional_taxonomy:
-                    self.addInverseSubsumptionTriple(URIRef(cls.iri), domain_cls)
+            if self.propagate_domain_range:
+                
+                for domain_cls in self.domains_dict[property_iri]:
+                    
+                    if str(cls.iri) == str(domain_cls):
+                        continue
+                    
+                    self.addSubsumptionTriple(URIRef(cls.iri), domain_cls)
+                    if self.bidirectional_taxonomy:
+                        self.addInverseSubsumptionTriple(URIRef(cls.iri), domain_cls)
             
             
             
@@ -626,10 +661,17 @@ class OntologyProjection(object):
                 targets.add(target_cls_iri)
                 
                 #TODO Propagate range only in this case
-                for range_cls in self.ranges_dict[property_iri]:
-                    self.addSubsumptionTriple(URIRef(target_cls_iri), range_cls)
-                    if self.bidirectional_taxonomy:
-                        self.addInverseSubsumptionTriple(URIRef(target_cls_iri), range_cls)
+                if self.propagate_domain_range:
+                    
+                    for range_cls in self.ranges_dict[property_iri]:
+                        
+                        if str(target_cls_iri) == str(range_cls):
+                            continue
+                        
+                        
+                        self.addSubsumptionTriple(URIRef(target_cls_iri), range_cls)
+                        if self.bidirectional_taxonomy:
+                            self.addInverseSubsumptionTriple(URIRef(target_cls_iri), range_cls)
                                     
                                         
             for target_cls in targets:
@@ -1155,6 +1197,7 @@ if __name__ == '__main__':
     start_time = time.time()
     
     #PARAMETERS:
+    #0. urionto: URI of the ontology to project
     #1. reasoner    
     #Reasoner.STRUCTURAL (incomplete reasoner, only propagates domain and ranges, but it may be sufficient for OWL2Vec)
     #Reasoner.PELLET (working well but slow for big ontologies, best choice for complete classification and class membership)

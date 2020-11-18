@@ -1298,12 +1298,12 @@ if __name__ == '__main__':
     
     path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
     
-    #uri_onto = path + "helis_v1.00.origin.owl"
-    #file_projection  = path + "helis_v1.00.projection.ttl"
+    uri_onto = path + "helis_v1.00.origin.owl"
+    file_projection  = path + "helis_v1.00.projection.ttl"
     
     
-    #uri_onto = path + "foodon-merged.owl"
-    #file_projection  = path + "foodon.projection.ttl"
+    uri_onto = path + "foodon-merged.owl"
+    file_projection  = path + "foodon.projection.ttl"
     
     #uri_onto = path + "go.owl"
     #file_projection  = path + "go.projection.ttl"

@@ -10,9 +10,9 @@ from rdflib import Graph, URIRef
 #, BNode, Literal
 from rdflib.namespace import RDF, RDFS
 import logging
-from constants import annotation_properties
+#from constants import annotation_properties
+from ontology.annotations import AnnotationURIs
 import time
-from docutils.nodes import row
 ######
 
 
@@ -44,11 +44,12 @@ class OntologyProjection(object):
     False
     5. avoid_properties
      Optional set of properties to be avoided from the projection     
-    6. additional_annotation_properties
-     Optional set of additional annotations to be included in case the lexical information (e.g. labels and synonyms are not present in standard annotation properties)
-    7. memory_reasoner (necessary for Hermit and Pellet as they are internally called as Java applications)  
+    6. additional_preferred_labels_annotations and
+    7. additional_synonyms_annotations
+     Optional set of additional annotation URIs to be included in case the lexical information (e.g. preferred labels and synonyms are not present in standard annotation properties)
+    8. memory_reasoner (necessary for Hermit and Pellet as they are internally called as Java applications)  
     '''
-    def __init__(self, urionto, reasoner=Reasoner.NONE, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='10240'):
+    def __init__(self, urionto, reasoner=Reasoner.NONE, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_preferred_labels_annotations=set(), additional_synonyms_annotations=set(), memory_reasoner='10240'):
         
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
         
@@ -70,7 +71,9 @@ class OntologyProjection(object):
         self.include_literals=include_literals
         
         self.avoid_properties = avoid_properties
-        self.additional_annotation_properties = additional_annotation_properties
+        
+        self.additional_preferred_labels_annotations = additional_preferred_labels_annotations
+        self.additional_synonyms_annotations = additional_synonyms_annotations
         
         self.propagate_domain_range = (reasoner==Reasoner.STRUCTURAL)
         
@@ -78,10 +81,16 @@ class OntologyProjection(object):
         ## 1. Create ontology using ontology_access
         self.onto = OntologyAccess(urionto)
         self.onto.loadOntology(reasoner, memory_reasoner)
+        
+        
+        self.annotation_uris = AnnotationURIs()
+        self.entityToPreferredLabels = {}
+        self.entityToSynonyms = {}
+        self.entityToAllLexicalLabels = {}
+        
     
     ##End constructor
-    
-    
+    ###################
     
     
     ##########################
@@ -90,7 +99,12 @@ class OntologyProjection(object):
     def extractProjection(self):
         
         logging.info("Creating ontology graph projection...")
+        
+        
+        ##TODO
+        #How to ignore deprecated classes    
             
+        
         ## 2. Initialize RDFlib graph
         self.projection = Graph()
         self.projection.bind("owl", "http://www.w3.org/2002/07/owl#")
@@ -417,10 +431,13 @@ class OntologyProjection(object):
             start_time = time.time()
             logging.info("\tExtracting annotations.")
             
-            #We add default annotation properties from constants.annotation_properties
-            self.additional_annotation_properties.update(annotation_properties.values)
+            #We add default annotation properties to additional set
+            all_annotation_uris = set()
+            all_annotation_uris.update(self.annotation_uris.getAnnotationURIsForLexicalAnnotations())
+            all_annotation_uris.update(self.additional_preferred_labels_annotations)
+            all_annotation_uris.update(self.additional_synonyms_annotations)
             
-            for ann_prop_uri in self.additional_annotation_properties:
+            for ann_prop_uri in all_annotation_uris:
                 #print(ann_prop_uri)
                 
                 results = self.onto.queryGraph(self.getQueryForAnnotations(ann_prop_uri))
@@ -430,7 +447,8 @@ class OntologyProjection(object):
                         #Keep labels in English or not specified
                         if row[1].language=="en" or row[1].language==None:
                             self.addTriple(row[0], URIRef(ann_prop_uri), row[1])
-                            #print(row[1].language)
+                            #print(dir(row[1]))
+                            #print(row[1].value)
                     except AttributeError:
                         pass
             
@@ -893,7 +911,7 @@ class OntologyProjection(object):
         return """SELECT DISTINCT ?r where {{
         {{
         <{prop}> <http://www.w3.org/2000/01/rdf-schema#range> [ <http://www.w3.org/2002/07/owl#intersectionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?r ] ] ] .
-        }}
+        }}    
         UNION
         {{
         <{prop}> <http://www.w3.org/2000/01/rdf-schema#range> [ <http://www.w3.org/2002/07/owl#unionOf> [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>* [ <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?r ] ] ] .
@@ -1169,10 +1187,70 @@ class OntologyProjection(object):
     #todo_include_todos    
     #14. Think about classes, annotations (simplified URIs for annotations), axioms, inferred_ancestors classes
     #get support to create structures list of classes, and store them as necessary. OWL2Vec reads them as strings, check that
+    
+    
+    def indexAnnotations(self):
+        
+        ##Populates dictionaries of annotation
+       
+            
+        #We add default annotation properties
+        pref_label_annotation_uris = set()
+        pref_label_annotation_uris.update(self.additional_preferred_labels_annotations)
+        pref_label_annotation_uris.update(self.annotation_uris.getAnnotationURIsForPreferredLabels())
+        
+        synonyms_annotation_uris = set()
+        synonyms_annotation_uris.update(self.additional_synonyms_annotations)
+        synonyms_annotation_uris.update(self.annotation_uris.getAnnotationURIsForSymnonyms())
+        
+        
+        all_annotation_uris = set()
+        all_annotation_uris.update(self.annotation_uris.getAnnotationURIsForLexicalAnnotations())
+        all_annotation_uris.update(self.additional_preferred_labels_annotations)
+        all_annotation_uris.update(self.additional_synonyms_annotations)
+        
+        
+        
+        
+        self.populateDictionary(pref_label_annotation_uris, self.entityToPreferredLabels)
+        self.populateDictionary(synonyms_annotation_uris, self.entityToSynonyms)
+        self.populateDictionary(all_annotation_uris, self.entityToAllLexicalLabels)
+        
+            
+        
+            
+    
+    
+    def populateDictionary(self, annotation_uris, dictionary):
+        
+        for ann_prop_uri in annotation_uris:
+               
+            results = self.onto.queryGraph(self.getQueryForAnnotations(ann_prop_uri))
+            for row in results:
+                
+                #Filter by language
+                try:
+                    #Keep labels in English or not specified
+                    if row[1].language=="en" or row[1].language==None:
+                        
+                        if not str(row[0]) in dictionary: 
+                            dictionary[str(row[0])]=set()
+                        dictionary[str(row[0])].add(row[1].value)
+                        
+                        
+                except AttributeError:
+                    pass
         
     
     
+    def getPreferredLabelsForEntity(self, entity_uri):
+        return self.entityToPreferredLabels[entity_uri]
     
+    def getSynonymLabelsForEntity(self, entity_uri):
+        return self.entityToSynonyms[entity_uri]
+    
+    def getAllAnnotationsForEntity(self, entity_uri):
+        return self.entityToAllLexicalLabels[entity_uri]
     
         
 
@@ -1181,7 +1259,7 @@ if __name__ == '__main__':
     uri_onto = "/home/ernesto/ontologies/test_projection.owl"
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
-    #path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
+    path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
     
     #uri_onto = path + "helis_v1.00.origin.owl"
     #file_projection  = path + "helis_v1.00.projection.ttl"
@@ -1214,10 +1292,11 @@ if __name__ == '__main__':
     #False
     #5. avoid_properties
     # Optional set of properties to be avoided from the projection     
-    #6. additional_annotation_properties
-    # Optional set of additional annotations to be included in case the lexical information (e.g. labels and synonyms are not present in standard annotation properties)
-    #7. memory_reasoner (necessary for Hermit and Pellet as they are internally called as Java applications)    
-    projection = OntologyProjection(uri_onto, reasoner=Reasoner.STRUCTURAL, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, avoid_properties=set(), additional_annotation_properties=set(), memory_reasoner='13351')
+    #6. additional_preferred_labels_annotations and
+    #7. additional_synonyms_annotations
+    # Optional set of additional annotation URIs to be included in case the lexical information (e.g. preferred labels and synonyms are not present in standard annotation properties) 
+    #8. memory_reasoner (necessary for Hermit and Pellet as they are internally called as Java applications)    
+    projection = OntologyProjection(uri_onto, reasoner=Reasoner.STRUCTURAL, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, avoid_properties=set(), additional_preferred_labels_annotations=set(), additional_synonyms_annotations=set(), memory_reasoner='13351')
     logging.info("Time loading ontology (and classifying): --- %s seconds ---" % (time.time() - start_time))
     
     start_time = time.time()
@@ -1232,8 +1311,22 @@ if __name__ == '__main__':
     logging.info("Time saving projection: --- %s seconds ---" % (time.time() - start_time))
     
     
+    start_time = time.time()
+    projection.indexAnnotations()
+    logging.info("Time indexing annotations: --- %s seconds ---" % (time.time() - start_time))
+    
+    #for e in projection.entityToPreferredLabels:
+    #    print(e, projection.entityToPreferredLabels[e])
+    #print("")
+    #for e in projection.entityToSynonyms:
+    #    print(e, projection.entityToSynonyms[e])
+    #print("")
+    #for e in projection.entityToAllLexicalLabels:
+    #    print(e, projection.entityToAllLexicalLabels[e])
+    
+    
     #projection.extractTriplesFromComplexAxioms() 
     
         
         
-        
+    

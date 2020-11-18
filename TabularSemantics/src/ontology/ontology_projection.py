@@ -83,11 +83,22 @@ class OntologyProjection(object):
         self.onto.loadOntology(reasoner, memory_reasoner)
         
         
+        #To index annotations
         self.annotation_uris = AnnotationURIs()
         self.entityToPreferredLabels = {}
         self.entityToSynonyms = {}
         self.entityToAllLexicalLabels = {}
         
+        
+        
+        #Set of entities
+        self.classURIs = set()
+        self.individualURIs = set()
+        
+        
+        
+        
+    
     
     ##End constructor
     ###################
@@ -1252,6 +1263,32 @@ class OntologyProjection(object):
     def getAllAnnotationsForEntity(self, entity_uri):
         return self.entityToAllLexicalLabels[entity_uri]
     
+    
+    
+    
+    def extractEntityURIs(self):
+        
+        for cls in self.onto.getClasses():
+            self.classURIs.add(cls.iri)
+        
+        
+        for indiv in self.onto.getIndividuals():
+            self.individualURIs.add(indiv.iri)
+    
+    
+    
+    
+    
+    def getClassURIs(self):
+        return self.classURIs
+        
+    
+    def getIndividualURIs(self):
+        return self.individualURIs
+    
+    
+    
+    
         
 
 if __name__ == '__main__':
@@ -1323,6 +1360,17 @@ if __name__ == '__main__':
     #print("")
     #for e in projection.entityToAllLexicalLabels:
     #    print(e, projection.entityToAllLexicalLabels[e])
+    
+    start_time = time.time()
+    projection.extractEntityURIs()
+    logging.info("Time extracting entity URIs: --- %s seconds ---" % (time.time() - start_time))
+    
+    #for cls in projection.getClassURIs():
+    #    print(cls)
+    #print("")
+    #for indiv in projection.getIndividualURIs():
+    #    print(indiv)
+    
     
     
     #projection.extractTriplesFromComplexAxioms() 

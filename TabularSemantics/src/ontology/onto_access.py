@@ -304,6 +304,12 @@ class OntologyAccess(object):
     def getIndividuals(self):        
         return self.getOntology().individuals()
         
+    
+    #Ontology graph representation (from RDFlib). Not to confuse with projection graph
+    def getGraph(self):
+        return self.graph
+    
+    
         
     def queryGraph(self, query):
         
@@ -432,8 +438,8 @@ if __name__ == '__main__':
     #for t in onto_access.getOntology().get_triples():
     #    print(t)
     
-    if True:
-        sys.exit()
+    #if True:
+    #    sys.exit()
         
     
     
@@ -516,7 +522,7 @@ if __name__ == '__main__':
                     #dir(to get all objects)
                     print("\t"+ str(cls_exp))
                     #print("\t\t"+ str(cls_exp.ancestors))
-                    print("\t\t"+ str(cls_exp.cardinality))
+                    print("\t\t cardinality: "+ str(cls_exp.cardinality))
                     #print("\t\t"+ str(cls_exp.is_a))
                     print("\t\t"+ str(cls_exp.property))
                     #print("\t\t"+ str(cls_exp.subclasses))

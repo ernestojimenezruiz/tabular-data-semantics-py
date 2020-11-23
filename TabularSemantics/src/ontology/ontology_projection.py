@@ -7,12 +7,16 @@ Created on 16 Oct 2020
 
 from ontology.onto_access import OntologyAccess, Reasoner
 from rdflib import Graph, URIRef
-#, BNode, Literal
+#, BNode, Literal, Variable
 from rdflib.namespace import RDF, RDFS
+#, Namespace
+#from rdflib.extras.infixowl import AllClasses, Class, manchesterSyntax
 import logging
-#from constants import annotation_properties
 from ontology.annotations import AnnotationURIs
 import time
+#
+#from rdflib.collection import Collection
+#from rdflib.util import first, guess_format
 ######
 
 
@@ -51,58 +55,244 @@ class OntologyProjection(object):
     '''
     def __init__(self, urionto, reasoner=Reasoner.NONE, only_taxonomy=False, bidirectional_taxonomy=False, include_literals=True, avoid_properties=set(), additional_preferred_labels_annotations=set(), additional_synonyms_annotations=set(), memory_reasoner='10240'):
         
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+        try:
+            logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+            
+            #owlready2.reasoning.JAVA_MEMORY='15360'
+            
+            #Parameters:
+            # - If ontology is classified (impact of using an OWL 2 Reasoner)
+            # - Project only_taxonomy (rdfs:subclassOf and rdf:type)
+            # - bidirectional_taxonomy: additional links superclassOf and typeOf
+            # - include literals in projection graph: data assertions and annotations
+            # - avoid_properties: optional properties to avoid from projection (expected set of (string) URIs, e.g., "http://www.semanticweb.org/myonto#prop1")
+            # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.). Expected a set of (string) URIs, e.g., "http://www.semanticweb.org/myonto#ann_prop1")
+            # - Optional memory for the reasoner (10240Mb=10Gb by default)
+            
+            self.urionto = urionto
+                    
+            self.only_taxonomy = only_taxonomy
+            self.bidirectional_taxonomy = bidirectional_taxonomy
+            self.include_literals=include_literals
+            
+            self.avoid_properties = avoid_properties
+            
+            self.additional_preferred_labels_annotations = additional_preferred_labels_annotations
+            self.additional_synonyms_annotations = additional_synonyms_annotations
+            
+            self.propagate_domain_range = (reasoner==Reasoner.STRUCTURAL)
+            
+            
+            ## 1. Create ontology using ontology_access
+            self.onto = OntologyAccess(urionto)
+            self.onto.loadOntology(reasoner, memory_reasoner)
+            
+            
+            #To index annotations
+            self.annotation_uris = AnnotationURIs()
+            self.entityToPreferredLabels = {}
+            self.entityToSynonyms = {}
+            self.entityToAllLexicalLabels = {}
+            
+            
+            
+            #Set of entities
+            self.classURIs = set()
+            self.individualURIs = set()
+            
+            
+            #Set of axioms in manchester syntax
+            self.axioms_manchester = set()
+            
+            self.loadingSuccessful = True
+            
+        except:
+            logging.error("PROBLEM LOADING the ontology with OWLReady. An OWL 2 compliant ontology is expected in RDF/XML, OWL/XML or NTriples format.")
+            self.loadingSuccessful = False
         
-        #owlready2.reasoning.JAVA_MEMORY='15360'
-        
-        #Parameters:
-        # - If ontology is classified (impact of using an OWL 2 Reasoner)
-        # - Project only_taxonomy (rdfs:subclassOf and rdf:type)
-        # - bidirectional_taxonomy: additional links superclassOf and typeOf
-        # - include literals in projection graph: data assertions and annotations
-        # - avoid_properties: optional properties to avoid from projection (expected set of (string) URIs, e.g., "http://www.semanticweb.org/myonto#prop1")
-        # - Additional annotation properties to consider (in addition to standard annotation properties, e.g. rdfs:label, skos:prefLabel, etc.). Expected a set of (string) URIs, e.g., "http://www.semanticweb.org/myonto#ann_prop1")
-        # - Optional memory for the reasoner (10240Mb=10Gb by default)
-        
-        self.urionto = urionto
-                
-        self.only_taxonomy = only_taxonomy
-        self.bidirectional_taxonomy = bidirectional_taxonomy
-        self.include_literals=include_literals
-        
-        self.avoid_properties = avoid_properties
-        
-        self.additional_preferred_labels_annotations = additional_preferred_labels_annotations
-        self.additional_synonyms_annotations = additional_synonyms_annotations
-        
-        self.propagate_domain_range = (reasoner==Reasoner.STRUCTURAL)
-        
-        
-        ## 1. Create ontology using ontology_access
-        self.onto = OntologyAccess(urionto)
-        self.onto.loadOntology(reasoner, memory_reasoner)
-        
-        
-        #To index annotations
-        self.annotation_uris = AnnotationURIs()
-        self.entityToPreferredLabels = {}
-        self.entityToSynonyms = {}
-        self.entityToAllLexicalLabels = {}
-        
-        
-        
-        #Set of entities
-        self.classURIs = set()
-        self.individualURIs = set()
-        
-        
-        
-        
-    
-    
-    ##End constructor
+    ##End class constructor
     ###################
     
+    
+    
+    
+    ####
+    ### Class axioms with atomic class in LHS
+    ### e.g. A sub/equiv B
+    ### e.g. A sub/equiv B and/or R some D
+    ### e.g. A sub/equiv R some (D and/or E)
+    ### Also includes class and role assertions    
+    ####
+    def createManchesterSyntaxAxioms(self):
+        
+        self.restriction = {
+            24: "some",
+            25: "only",
+            26: "exactly",
+            27: "min",
+            28: "max"
+        }
+        
+        
+        ##Class axioms
+        for cls in self.onto.getClasses():
+          
+            for cls_exp in cls.is_a:
+                self.__convertAxtiomToManchesterSyntax__(cls.iri, cls_exp, "SubClassOf")
+               
+                
+            for cls_exp in cls.equivalent_to:
+                self.__convertAxtiomToManchesterSyntax__(cls.iri, cls_exp, "EquivalentTo")
+        
+        
+        #Class assertions                        
+        results = self.onto.queryGraph(self.getQueryForAllClassTypes())               
+        for row in results:
+            self.axioms_manchester.add(str(row[0]) + " Type " + str(row[1]))
+            
+        
+        
+        #Object Role assertions
+        for prop in list(self.onto.getObjectProperties()):
+            results = self.onto.queryGraph(self.getQueryObjectRoleAssertions(prop.iri))
+            for row in results:
+                self.axioms_manchester.add(str(row[0]) + " " + str(prop.iri) + " " + str(row[1]))
+            
+
+        #Data Role assertions
+        for prop in list(self.onto.getDataProperties()):
+            results = self.onto.queryGraph(self.getQueryDataRoleAssertions(prop.iri))
+            
+            for row in results:
+                self.axioms_manchester.add(str(row[0]) + " " + str(prop.iri) + " " + str(row[1]))
+        
+            
+    
+    
+    def __convertAxtiomToManchesterSyntax__(self, cls_iri, cls_exp, axiom_type):
+        
+        manchester_str = str(self.__convertExpressionToManchesterSyntax__(cls_exp))
+                
+        if manchester_str == "http://www.w3.org/2002/07/owl#Thing" or manchester_str == "http://www.w3.org/2002/07/owl#Nothing":
+            return                
+                
+        self.axioms_manchester.add(str(cls_iri) + " " + axiom_type + " " + manchester_str)
+        
+                
+                
+    def __convertUnionToManchesterSyntax__(self, cls_exp):
+        return self.__convertListToManchesterSyntax__(cls_exp, "or")
+    
+    
+    
+    def __convertIntersectionToManchesterSyntax__(self, cls_exp):
+        return self.__convertListToManchesterSyntax__(cls_exp, "and")
+    
+    
+    
+
+    def __convertListToManchesterSyntax__(self, cls_exp, connector):
+        
+        
+        i = 0
+        manchester_str = ""
+        while i < len(cls_exp.Classes)-1:
+            #print(cls_exp.Classes[i])
+            manchester_str += self.__convertExpressionToManchesterSyntax__(cls_exp.Classes[i]) + " " + connector + " "
+            i += 1
+        
+        return manchester_str + self.__convertExpressionToManchesterSyntax__(cls_exp.Classes[i])
+        
+            
+        #
+        
+        
+        
+    
+    
+    def __convertRestrictionToManchesterSyntax__(self, cls_exp):
+        
+        if hasattr(cls_exp.property, "iri"):
+            manchester_str = str(cls_exp.property.iri)
+        else:  ## case of inverses
+            manchester_str = str(cls_exp.property) 
+            
+        manchester_str += " " + self.restriction[cls_exp.type]
+        
+        if cls_exp.type >= 26:
+            manchester_str += " " + str(cls_exp.cardinality)
+        
+        
+        #print(dir(cls_exp)) 
+        return manchester_str + " " + self.__convertExpressionToManchesterSyntax__(cls_exp.value)
+    
+  
+
+    
+    
+    def __convertAtomicClassToManchesterSyntax__(self, cls_exp):
+        return str(cls_exp.iri)
+
+    
+    
+    def __convertOneOfToManchesterSyntax__(self, cls_exp):
+        
+        i = 0
+        manchester_str = "OneOf: "
+        while i < len(cls_exp.instances)-1:
+            #print(cls_exp.Classes[i])
+            manchester_str += self.__convertExpressionToManchesterSyntax__(cls_exp.instances[i]) + ", "
+            i += 1
+        
+        return manchester_str + self.__convertExpressionToManchesterSyntax__(cls_exp.instances[i])
+        
+        
+
+
+    def __convertExpressionToManchesterSyntax__(self, cls_exp):
+        
+        try:
+            
+            #Union or Intersection
+            if hasattr(cls_exp, "Classes"):  
+                if hasattr(cls_exp, "get_is_a"): 
+                    return self.__convertIntersectionToManchesterSyntax__(cls_exp)
+                else: 
+                    return self.__convertUnionToManchesterSyntax__(cls_exp)
+                
+            
+            #Restriction                
+            elif hasattr(cls_exp, "property"):
+                return self.__convertRestrictionToManchesterSyntax__(cls_exp)
+            
+            #Atomic class
+            elif hasattr(cls_exp, "iri"):
+                return self.__convertAtomicClassToManchesterSyntax__(cls_exp)
+            
+            #One of 
+            elif hasattr(cls_exp, "instances"):
+                return self.__convertOneOfToManchesterSyntax__(cls_exp)
+                
+            
+            else: ##Any other expression (e.g., a datatype)               
+                return str(cls_exp)
+            
+           
+           
+                
+                
+      
+        except:# AttributeError:            
+            return str(cls_exp)  # In case of error
+         
+        
+        
+
+        
+    
+    
+   
+        
     
     ##########################
     #### EXTRACT PROJECTION
@@ -137,10 +327,10 @@ class OntologyProjection(object):
         results = self.onto.queryGraph(self.getQueryForAtomicClassSubsumptions())
         for row in results:
             
-            self.addSubsumptionTriple(row[0], row[1])
+            self.__addSubsumptionTriple__(row[0], row[1])
             
             if self.bidirectional_taxonomy:
-                self.addInverseSubsumptionTriple(row[0], row[1])
+                self.__addInverseSubsumptionTriple__(row[0], row[1])
                 
         logging.info("\t\tTime extracting subsumption: %s seconds " % (time.time() - start_time))
         
@@ -150,8 +340,8 @@ class OntologyProjection(object):
         results = self.onto.queryGraph(self.getQueryForAtomicClassEquivalences())
         for row in results:
             #print(row[0], row[1])
-            self.addSubsumptionTriple(row[0], row[1])
-            self.addSubsumptionTriple(row[1], row[0])
+            self.__addSubsumptionTriple__(row[0], row[1])
+            self.__addSubsumptionTriple__(row[1], row[0])
             
         logging.info("\t\tTime extracting equivalences: %s seconds " % (time.time() - start_time))
         
@@ -167,18 +357,18 @@ class OntologyProjection(object):
             #start_time2 = time.time()            
             results = self.onto.queryGraph(self.getQueryForIndividualClassTypes(indiv.iri))               
             for row in results:
-                self.addClassTypeTriple(URIRef(indiv.iri), row[0])
+                self.__addClassTypeTriple__(URIRef(indiv.iri), row[0])
                 
                 if self.bidirectional_taxonomy:
-                    self.addInverseClassTypeTriple(URIRef(indiv.iri), row[0])
+                    self.__addInverseClassTypeTriple__(URIRef(indiv.iri), row[0])
             #logging.info("\t\tTime extracting class membership: %s seconds " % (time.time() - start_time2))
             
             ## 6. Triples for same_as (no propagation)
             #start_time2 = time.time()            
             results = self.onto.queryGraph(self.getQueryForIndividualSameAs(indiv.iri))
             for row in results:
-                self.addSameAsTriple(URIRef(indiv.iri), row[0])
-                self.addSameAsTriple(row[0], URIRef(indiv.iri))
+                self.__addSameAsTriple__(URIRef(indiv.iri), row[0])
+                self.__addSameAsTriple__(row[0], URIRef(indiv.iri))
             #logging.info("\t\tTime and sameAs: %s seconds " % (time.time() - start_time2))
         
         logging.info("\t\tTime extracting class membership and sameAs: %s seconds " % (time.time() - start_time))
@@ -190,10 +380,10 @@ class OntologyProjection(object):
         logging.info("\tExtracting class membership triples.")                
         results = self.onto.queryGraph(self.getQueryForAllClassTypes())               
         for row in results:
-            self.addClassTypeTriple(row[0], row[1])
+            self.__addClassTypeTriple__(row[0], row[1])
            
             if self.bidirectional_taxonomy:
-                self.addInverseClassTypeTriple(row[0], row[1])
+                self.__addInverseClassTypeTriple__(row[0], row[1])
                  
         logging.info("\t\tTime extracting class membership: %s seconds " % (time.time() - start_time))
         
@@ -203,8 +393,8 @@ class OntologyProjection(object):
         start_time = time.time()
         results = self.onto.queryGraph(self.getQueryForAllSameAs())
         for row in results:
-            self.addSameAsTriple(row[0], row[1])
-            self.addSameAsTriple(row[1], row[0])
+            self.__addSameAsTriple__(row[0], row[1])
+            self.__addSameAsTriple__(row[1], row[0])
             
         logging.info("\t\tTime extracting sameAs: %s seconds " % (time.time() - start_time))
         
@@ -257,7 +447,7 @@ class OntologyProjection(object):
             #print(self.getQueryForDomainAndRange(prop.iri))
             #logging.info("\t\tExtracting domain and range for " + str(prop.name))
             results = self.onto.queryGraph(self.getQueryForDomainAndRange(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, True)
+            self.__processPropertyResults__(prop.iri, results, True, True)
             
             #To propagate domain/range entailment. Only atomic domains
             results_domain = self.onto.queryGraph(self.getQueryForDomain(prop.iri))
@@ -281,7 +471,7 @@ class OntologyProjection(object):
                 #self.domains.add(row_domain[0])         
                 for row_range in results_range:
                     
-                    self.addTriple(row_domain[0], URIRef(prop.iri), row_range[0])
+                    self.__addTriple__(row_domain[0], URIRef(prop.iri), row_range[0])
             
                     if not row_domain[0] in self.triple_dict:
                         self.triple_dict[row_domain[0]]=set()
@@ -293,34 +483,34 @@ class OntologyProjection(object):
             ##8.a RHS restrictions (some, all, cardinality) via subclassof and equivalence
             #logging.info("\t\tExtracting RHS restrictions for " + str(prop.name))
             results = self.onto.queryGraph(self.getQueryForRestrictionsRHSSubClassOf(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, True)
+            self.__processPropertyResults__(prop.iri, results, True, True)
             results = self.onto.queryGraph(self.getQueryForRestrictionsRHSEquivalent(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, True)
+            self.__processPropertyResults__(prop.iri, results, True, True)
                 
             ##Not optimal to query via SPARQL: integrated in complex axioms method
             ##8.b Complex restrictions RHS: "R some (A or B)"
             #logging.info("\t\tExtracting complex RHS restrictions for " + str(prop.name))
             #results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHSSubClassOf(prop.iri))
-            #self.processPropertyResults(prop.iri, results)
+            #self.__processPropertyResults__(prop.iri, results)
             ##results = self.onto.queryGraph(self.getQueryForComplexRestrictionsRHSEquivalent(prop.iri))
-            ##self.processPropertyResults(prop.iri, results)
+            ##self.__processPropertyResults__(prop.iri, results)
                 
                 
             ##8.c LHS restrictions (some, all, cardinality) via subclassof (considered above in case of equivalence)
             #logging.info("\t\tExtracting LHS restrictions for " + str(prop.name))
             results = self.onto.queryGraph(self.getQueryForRestrictionsLHS(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, True)
+            self.__processPropertyResults__(prop.iri, results, True, True)
                 
             ##8.d Complex restrictions LHS: "R some (A or B)"
             #logging.info("\t\tExtracting Complex LHS restrictions for " + str(prop.name))
             results = self.onto.queryGraph(self.getQueryForComplexRestrictionsLHS(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, True)
+            self.__processPropertyResults__(prop.iri, results, True, True)
                 
 
             ## 9. Extract triples for role assertions (object and data)
             #logging.info("\t\tExtracting triples for role assertions for " + str(prop.name))
             results = self.onto.queryGraph(self.getQueryObjectRoleAssertions(prop.iri))
-            self.processPropertyResults(prop.iri, results, False, True)
+            self.__processPropertyResults__(prop.iri, results, False, True)
                 
             
             
@@ -331,7 +521,7 @@ class OntologyProjection(object):
                 for row in results:
                     for sub in self.triple_dict:
                         for obj in self.triple_dict[sub]:
-                            self.addTriple(obj, row[0], sub) #Reversed triple. Already all as URIRef
+                            self.__addTriple__(obj, row[0], sub) #Reversed triple. Already all as URIRef
                             
                     
                     
@@ -342,7 +532,7 @@ class OntologyProjection(object):
                     #print("\t" + row[0])
                     for sub in self.triple_dict:
                         for obj in self.triple_dict[sub]:
-                            self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
+                            self.__addTriple__(sub, row[0], obj) #Inferred triple. Already all as URIRef
                     
             
             #print(self.triple_dict)
@@ -391,14 +581,14 @@ class OntologyProjection(object):
             
             ## 12b. Restrictions
             results = self.onto.queryGraph(self.getQueryForDataRestrictionsRHSSubClassOf(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, False)  ##Propagates domain and range but avoids adding the triple
+            self.__processPropertyResults__(prop.iri, results, True, False)  ##Propagates domain and range but avoids adding the triple
             results = self.onto.queryGraph(self.getQueryForDataRestrictionsRHSEquivalent(prop.iri))
-            self.processPropertyResults(prop.iri, results, True, False)
+            self.__processPropertyResults__(prop.iri, results, True, False)
             
                 
             ## 12c. Extract triples for role assertions (data)
             results = self.onto.queryGraph(self.getQueryDataRoleAssertions(prop.iri))
-            self.processPropertyResults(prop.iri, results, False, self.include_literals)
+            self.__processPropertyResults__(prop.iri, results, False, self.include_literals)
                                        
                     
             ## 12d. Propagate property equivalences only not subproperties (data). ABox
@@ -407,7 +597,7 @@ class OntologyProjection(object):
                 #print("\t" + row[0])
                 for sub in self.triple_dict:
                     for obj in self.triple_dict[sub]:
-                        self.addTriple(sub, row[0], obj) #Inferred triple. Already all as URIRef
+                        self.__addTriple__(sub, row[0], obj) #Inferred triple. Already all as URIRef
                         
                     
                     
@@ -428,7 +618,7 @@ class OntologyProjection(object):
         ##Propagate equivalences and inverses
         start_time = time.time()
         logging.info("\tExtracting complex equivalence axioms")
-        self.extractTriplesFromComplexAxioms()
+        self.__extractTriplesFromComplexAxioms__()
         logging.info("\t\tTime extracting complex equivalence axioms: %s seconds " % (time.time() - start_time))
         ######################################
         
@@ -457,7 +647,7 @@ class OntologyProjection(object):
                     try:
                         #Keep labels in English or not specified
                         if row[1].language=="en" or row[1].language==None:
-                            self.addTriple(row[0], URIRef(ann_prop_uri), row[1])
+                            self.__addTriple__(row[0], URIRef(ann_prop_uri), row[1])
                             #print(dir(row[1]))
                             #print(row[1].value)
                     except AttributeError:
@@ -491,20 +681,20 @@ class OntologyProjection(object):
     
     
     
-    def addTriple(self, subject_uri, predicate_uri, object_uri):
+    def __addTriple__(self, subject_uri, predicate_uri, object_uri):
         self.projection.add( (subject_uri, predicate_uri, object_uri) )
     
     
        
     
     #Adds triples to graphs and updates property dictionary
-    def processPropertyResults(self, prop_iri, results, are_tbox_results, add_triple):
+    def __processPropertyResults__(self, prop_iri, results, are_tbox_results, add_triple):
         
         for row in results:
             
             if (not self.only_taxonomy) & add_triple:
                 
-                self.addTriple(row[0], URIRef(prop_iri), row[1])
+                self.__addTriple__(row[0], URIRef(prop_iri), row[1])
                 
                 if not row[0] in self.triple_dict:
                     self.triple_dict[row[0]]=set()
@@ -516,82 +706,83 @@ class OntologyProjection(object):
                 
                 if are_tbox_results:
                     
-                    self.propagateDomainTbox(row[0])
+                    self.__propagateDomainTbox__(row[0])
                     try:
-                        self.propagateRangeTbox(row[1])
+                        self.__propagateRangeTbox__(row[1])
                     except: ##case of dataproperty restrictions
                         pass
                 
                 else:
-                    self.propagateDomainAbox(row[0])
+                    self.__propagateDomainAbox__(row[0])
                     try:
-                        self.propagateRangeAbox(row[1])
+                        self.__propagateRangeAbox__(row[1])
                     except: ##case of dataproperty restrictions
                         pass
     
     
     
     
-    def propagateDomainTbox(self, source):
+    def __propagateDomainTbox__(self, source):
         for domain_cls in self.domains:
             
             if str(source) == str(domain_cls):
                 continue
             
-            self.addSubsumptionTriple(source, domain_cls)
+            self.__addSubsumptionTriple__(source, domain_cls)
             if self.bidirectional_taxonomy:
-                self.addInverseSubsumptionTriple(source, domain_cls)
+                self.__addInverseSubsumptionTriple__(source, domain_cls)
     
     
-    def propagateRangeTbox(self, target):
+    def __propagateRangeTbox__(self, target):
     
         for range_cls in self.ranges:
             
             if str(target) == str(range_cls):
                 continue
                 
-            self.addSubsumptionTriple(target, range_cls)
+            self.__addSubsumptionTriple__(target, range_cls)
             if self.bidirectional_taxonomy:
-                self.addInverseSubsumptionTriple(target, range_cls)
+                self.__addInverseSubsumptionTriple__(target, range_cls)
                             
             
     
-    def propagateDomainAbox(self, source):
+    def __propagateDomainAbox__(self, source):
         
         for domain_cls in self.domains:
-            self.addClassTypeTriple(source, domain_cls)
+            self.__addClassTypeTriple__(source, domain_cls)
             if self.bidirectional_taxonomy:
-                self.addInverseClassTypeTriple(source, domain_cls)
+                self.__addInverseClassTypeTriple__(source, domain_cls)
     
-    def propagateRangeAbox(self, target):              
+    
+    def __propagateRangeAbox__(self, target):              
                     
         for range_cls in self.ranges:
-            self.addClassTypeTriple(target, range_cls)
+            self.__addClassTypeTriple__(target, range_cls)
             if self.bidirectional_taxonomy:
-                self.addInverseClassTypeTriple(target, range_cls)
+                self.__addInverseClassTypeTriple__(target, range_cls)
                             
         
     
     
     
-    def addSubsumptionTriple(self, subclass_uri, superclass_uri):
+    def __addSubsumptionTriple__(self, subclass_uri, superclass_uri):
         self.projection.add( (subclass_uri, RDFS.subClassOf, superclass_uri) )
         
         
-    def addInverseSubsumptionTriple(self, subclass_uri, superclass_uri):
+    def __addInverseSubsumptionTriple__(self, subclass_uri, superclass_uri):
         self.projection.add( (superclass_uri, URIRef("http://www.semanticweb.org/owl2vec#superClassOf"), subclass_uri) )
     
     
-    def addClassTypeTriple(self, indiv_uri, class_uri):
+    def __addClassTypeTriple__(self, indiv_uri, class_uri):
         self.projection.add( (indiv_uri, RDF.type, class_uri) )
     
     
         
-    def addInverseClassTypeTriple(self, indiv_uri, class_uri):
+    def __addInverseClassTypeTriple__(self, indiv_uri, class_uri):
         self.projection.add( (class_uri, URIRef("http://www.semanticweb.org/owl2vec#typeOf"), indiv_uri) )
         
         
-    def addSameAsTriple(self, indiv_uri1, indiv_uri2):
+    def __addSameAsTriple__(self, indiv_uri1, indiv_uri2):
         self.projection.add( (indiv_uri1, URIRef("http://www.w3.org/2002/07/owl#sameAs"), indiv_uri2) )
     
     
@@ -602,7 +793,7 @@ class OntologyProjection(object):
         
     
     
-    def extractTriplesFromComplexAxioms(self):
+    def __extractTriplesFromComplexAxioms__(self):
         #Using sparql it is harder to get this type of axioms
         #Axioms involving intersection and unions.
         #e.g. A sub/equiv B and/or R some D
@@ -622,10 +813,10 @@ class OntologyProjection(object):
                         try:
                             #print(cls_exp2)
                             #Case of atomic class in union or intersection
-                            self.addSubsumptionTriple(URIRef(cls.iri), URIRef(cls_exp2.iri))
+                            self.__addSubsumptionTriple__(URIRef(cls.iri), URIRef(cls_exp2.iri))
                             
                             if self.bidirectional_taxonomy:
-                                self.addInverseSubsumptionTriple(URIRef(cls.iri), URIRef(cls_exp2.iri))
+                                self.__addInverseSubsumptionTriple__(URIRef(cls.iri), URIRef(cls_exp2.iri))
                                 
                         except AttributeError:
                             try:
@@ -633,7 +824,7 @@ class OntologyProjection(object):
                                 
                                     #Case of restrictions in union/intersection
                                     ##------------------------------------------
-                                    self.extractTriplesForRestriction(cls, cls_exp2)
+                                    self.__extractTriplesForRestriction__(cls, cls_exp2)
                                     
                             except AttributeError:
                                 pass  # Not supported restriction
@@ -644,7 +835,7 @@ class OntologyProjection(object):
                     ##------------------------------------------
                     try:
                         if (not self.only_taxonomy) and (not cls_exp.property.iri in self.avoid_properties):
-                            self.extractTriplesForRestriction(cls, cls_exp) 
+                            self.__extractTriplesForRestriction__(cls, cls_exp) 
                     
                     except AttributeError:
                         pass  # Not supported restriction 
@@ -653,7 +844,7 @@ class OntologyProjection(object):
         
     
     
-    def extractTriplesForRestriction(self, cls, cls_exp_rest):
+    def __extractTriplesForRestriction__(self, cls, cls_exp_rest):
         
         try:
                                     
@@ -669,9 +860,9 @@ class OntologyProjection(object):
                     if str(cls.iri) == str(domain_cls):
                         continue
                     
-                    self.addSubsumptionTriple(URIRef(cls.iri), domain_cls)
+                    self.__addSubsumptionTriple__(URIRef(cls.iri), domain_cls)
                     if self.bidirectional_taxonomy:
-                        self.addInverseSubsumptionTriple(URIRef(cls.iri), domain_cls)
+                        self.__addInverseSubsumptionTriple__(URIRef(cls.iri), domain_cls)
             
             
             
@@ -698,25 +889,25 @@ class OntologyProjection(object):
                             continue
                         
                         
-                        self.addSubsumptionTriple(URIRef(target_cls_iri), range_cls)
+                        self.__addSubsumptionTriple__(URIRef(target_cls_iri), range_cls)
                         if self.bidirectional_taxonomy:
-                            self.addInverseSubsumptionTriple(URIRef(target_cls_iri), range_cls)
+                            self.__addInverseSubsumptionTriple__(URIRef(target_cls_iri), range_cls)
                                     
                                         
             for target_cls in targets:
                                         
-                self.addTriple(URIRef(cls.iri), URIRef(property_iri), URIRef(target_cls))
+                self.__addTriple__(URIRef(cls.iri), URIRef(property_iri), URIRef(target_cls))
                                             
                 ##Propagate equivalences and inverses for cls_exp2.property
                 ## 12a. Extract named inverses and create/propagate new reversed triples.
                 results = self.onto.queryGraph(self.getQueryForInverses(property_iri))
                 for row in results:
-                    self.addTriple(URIRef(target_cls), row[0], URIRef(cls.iri)) #Reversed triple. Already all as URIRef
+                    self.__addTriple__(URIRef(target_cls), row[0], URIRef(cls.iri)) #Reversed triple. Already all as URIRef
                             
                 ## 12b. Propagate property equivalences only (object).
                 results = self.onto.queryGraph(self.getQueryForAtomicEquivalentObjectProperties(property_iri))
                 for row in results:
-                    self.addTriple(URIRef(cls.iri), row[0], URIRef(target_cls)) #Inferred triple. Already all as URIRef
+                    self.__addTriple__(URIRef(cls.iri), row[0], URIRef(target_cls)) #Inferred triple. Already all as URIRef
             ##end targets
                                     
         except AttributeError:
@@ -1223,16 +1414,16 @@ class OntologyProjection(object):
         
         
         
-        self.populateDictionary(pref_label_annotation_uris, self.entityToPreferredLabels)
-        self.populateDictionary(synonyms_annotation_uris, self.entityToSynonyms)
-        self.populateDictionary(all_annotation_uris, self.entityToAllLexicalLabels)
+        self.__populateDictionary__(pref_label_annotation_uris, self.entityToPreferredLabels)
+        self.__populateDictionary__(synonyms_annotation_uris, self.entityToSynonyms)
+        self.__populateDictionary__(all_annotation_uris, self.entityToAllLexicalLabels)
         
             
         
             
     
     
-    def populateDictionary(self, annotation_uris, dictionary):
+    def __populateDictionary__(self, annotation_uris, dictionary):
         
         for ann_prop_uri in annotation_uris:
                
@@ -1297,6 +1488,7 @@ if __name__ == '__main__':
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
     path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
+    #path = "/home/ernesto/Documents/Datasets/LargeBio/"
     
     uri_onto = path + "helis_v1.00.origin.owl"
     file_projection  = path + "helis_v1.00.projection.ttl"
@@ -1305,8 +1497,11 @@ if __name__ == '__main__':
     uri_onto = path + "foodon-merged.owl"
     file_projection  = path + "foodon.projection.ttl"
     
-    #uri_onto = path + "go.owl"
-    #file_projection  = path + "go.projection.ttl"
+    uri_onto = path + "go.owl"
+    file_projection  = path + "go.projection.ttl"
+    
+    #uri_onto = path + "snomed20090131_replab.owl"
+    #file_projection  = path + "snomed20090131_replab.projection.ttl"
     
     
     start_time = time.time()
@@ -1336,45 +1531,53 @@ if __name__ == '__main__':
     projection = OntologyProjection(uri_onto, reasoner=Reasoner.STRUCTURAL, only_taxonomy=False, bidirectional_taxonomy=True, include_literals=True, avoid_properties=set(), additional_preferred_labels_annotations=set(), additional_synonyms_annotations=set(), memory_reasoner='13351')
     logging.info("Time loading ontology (and classifying): --- %s seconds ---" % (time.time() - start_time))
     
-    start_time = time.time()
-    projection.extractProjection()
-    logging.info("Time extracting projection: --- %s seconds ---" % (time.time() - start_time))
+    if projection.loadingSuccessful:
     
-    start_time = time.time()
-    #Gets RDFLib's Graph object with projection
-    #projection.getProjectionGraph()
-    #Saves projection (optional)  
-    projection.saveProjectionGraph(file_projection)
-    logging.info("Time saving projection: --- %s seconds ---" % (time.time() - start_time))
-    
-    
-    start_time = time.time()
-    projection.indexAnnotations()
-    logging.info("Time indexing annotations: --- %s seconds ---" % (time.time() - start_time))
-    
-    #for e in projection.entityToPreferredLabels:
-    #    print(e, projection.entityToPreferredLabels[e])
-    #print("")
-    #for e in projection.entityToSynonyms:
-    #    print(e, projection.entityToSynonyms[e])
-    #print("")
-    #for e in projection.entityToAllLexicalLabels:
-    #    print(e, projection.entityToAllLexicalLabels[e])
-    
-    start_time = time.time()
-    projection.extractEntityURIs()
-    logging.info("Time extracting entity URIs: --- %s seconds ---" % (time.time() - start_time))
-    
-    #for cls in projection.getClassURIs():
-    #    print(cls)
-    #print("")
-    #for indiv in projection.getIndividualURIs():
-    #    print(indiv)
-    
-    
-    
-    #projection.extractTriplesFromComplexAxioms() 
-    
+        start_time = time.time()
+        projection.extractProjection()
+        logging.info("Time extracting projection: --- %s seconds ---" % (time.time() - start_time))
         
+        start_time = time.time()
+        #Gets RDFLib's Graph object with projection
+        #projection.getProjectionGraph()
+        #Saves projection (optional)  
+        projection.saveProjectionGraph(file_projection)
+        logging.info("Time saving projection: --- %s seconds ---" % (time.time() - start_time))
+        
+        
+        start_time = time.time()
+        projection.indexAnnotations()
+        logging.info("Time indexing annotations: --- %s seconds ---" % (time.time() - start_time))
+        
+        
+        
+        #for e in projection.entityToPreferredLabels:
+        #    print(e, projection.entityToPreferredLabels[e])
+        #print("")
+        #for e in projection.entityToSynonyms:
+        #    print(e, projection.entityToSynonyms[e])
+        #print("")
+        #for e in projection.entityToAllLexicalLabels:
+        #    print(e, projection.entityToAllLexicalLabels[e])
+        
+        start_time = time.time()
+        projection.extractEntityURIs()
+        logging.info("Time extracting entity URIs: --- %s seconds ---" % (time.time() - start_time))
+        
+        #for cls in projection.getClassURIs():
+        #    print(cls)
+        #print("")
+        #for indiv in projection.getIndividualURIs():
+        #    print(indiv)
+        
+        
+        start_time = time.time()
+        projection.createManchesterSyntaxAxioms()
+        logging.info("Time creating Manchester syntax axioms: --- %s seconds ---" % (time.time() - start_time))
+        #for ax in projection.axioms_manchester:
+        #    print(ax)
+        
+        
+            
         
     

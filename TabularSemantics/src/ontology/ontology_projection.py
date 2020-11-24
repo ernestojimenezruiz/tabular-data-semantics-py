@@ -1036,6 +1036,13 @@ class OntologyProjection(object):
         && str(?o) != 'http://www.w3.org/2002/07/owl#Restriction'
         && str(?o) != 'http://www.w3.org/2002/07/owl#NamedIndividual'
         && str(?o) != 'http://www.w3.org/2002/07/owl#Thing'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#TransitiveProperty'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#FunctionalProperty'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#InverseFunctionalProperty'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#SymmetricProperty'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#AsymmetricProperty'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#ReflexiveProperty'
+        && str(?o) != 'http://www.w3.org/2002/07/owl#IrreflexiveProperty'      
         )
         }"""
     #This makes the queries slower when large set of classes or invividuals:
@@ -1490,15 +1497,15 @@ if __name__ == '__main__':
     path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
     #path = "/home/ernesto/Documents/Datasets/LargeBio/"
     
-    uri_onto = path + "helis_v1.00.origin.owl"
-    file_projection  = path + "helis_v1.00.projection.ttl"
+    #uri_onto = path + "helis_v1.00.origin.owl"
+    #file_projection  = path + "helis_v1.00.projection.ttl"
     
     
     uri_onto = path + "foodon-merged.owl"
     file_projection  = path + "foodon.projection.ttl"
     
-    uri_onto = path + "go.owl"
-    file_projection  = path + "go.projection.ttl"
+    #uri_onto = path + "go.owl"
+    #file_projection  = path + "go.projection.ttl"
     
     #uri_onto = path + "snomed20090131_replab.owl"
     #file_projection  = path + "snomed20090131_replab.projection.ttl"
@@ -1575,7 +1582,8 @@ if __name__ == '__main__':
         projection.createManchesterSyntaxAxioms()
         logging.info("Time creating Manchester syntax axioms: --- %s seconds ---" % (time.time() - start_time))
         #for ax in projection.axioms_manchester:
-        #    print(ax)
+        #    if "FOODON_00001917" in ax:
+        #        print(ax)
         
         
             

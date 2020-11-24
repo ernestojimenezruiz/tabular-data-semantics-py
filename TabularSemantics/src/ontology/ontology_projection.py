@@ -14,6 +14,7 @@ from rdflib.namespace import RDF, RDFS
 import logging
 from ontology.annotations import AnnotationURIs
 import time
+import sys
 #
 #from rdflib.collection import Collection
 #from rdflib.util import first, guess_format
@@ -107,7 +108,7 @@ class OntologyProjection(object):
             self.loadingSuccessful = True
             
         except:
-            logging.error("PROBLEM LOADING the ontology with OWLReady. An OWL 2 compliant ontology is expected in RDF/XML, OWL/XML or NTriples format.")
+            logging.error("PROBLEM LOADING the ontology with OWLReady. An OWL 2 compliant ontology is expected in RDF/XML, OWL/XML or NTriples format: \n\t" + str(sys.exc_info()[0]) + "\n\t" + str(sys.exc_info()[1]))
             self.loadingSuccessful = False
         
     ##End class constructor
@@ -1495,7 +1496,7 @@ if __name__ == '__main__':
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
     path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
-    #path = "/home/ernesto/Documents/Datasets/LargeBio/"
+    path = "/home/ernesto/Documents/Datasets/LargeBio/"
     
     #uri_onto = path + "helis_v1.00.origin.owl"
     #file_projection  = path + "helis_v1.00.projection.ttl"
@@ -1507,8 +1508,9 @@ if __name__ == '__main__':
     #uri_onto = path + "go.owl"
     #file_projection  = path + "go.projection.ttl"
     
-    #uri_onto = path + "snomed20090131_replab.owl"
-    #file_projection  = path + "snomed20090131_replab.projection.ttl"
+    uri_onto = path + "snomed20090131_replab.owl"
+    uri_onto = path + "oaei2013_SNOMED_extended_overlapping_fma_nci_error.owl"
+    file_projection  = path + "snomed20090131_replab.projection.ttl"
     
     
     start_time = time.time()

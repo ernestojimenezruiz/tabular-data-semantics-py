@@ -877,22 +877,36 @@ class OntologyProjection(object):
             #Atomic target class in target of restrictions
             elif hasattr(cls_exp_rest.value, "iri"):
                 
-                target_cls_iri = cls_exp_rest.value.iri
+                ##Error with reviewsPerPaper exactly 1 rdfs:Literal restriction
+                ##rdfs:Literal is considered as owl:Thing
+                #In any case both rdfs:Literal and owl:Thing should be filtered
                 
-                targets.add(target_cls_iri)
+                target_cls_iri = cls_exp_rest.value.iri     
                 
-                #TODO Propagate range only in this case
-                if self.propagate_domain_range:
+                if not target_cls_iri=="http://www.w3.org/2002/07/owl#Thing" and not target_cls_iri=="http://www.w3.org/2000/01/rdf-schema#Literal":
+                           
+                    ##print(property_iri,target_cls_iri,cls_exp_rest)                
+                    targets.add(target_cls_iri)
                     
-                    for range_cls in self.ranges_dict[property_iri]:
+                    #TODO Propagate range only in this case
+                    if self.propagate_domain_range:
                         
-                        if str(target_cls_iri) == str(range_cls):
-                            continue
-                        
-                        
-                        self.__addSubsumptionTriple__(URIRef(target_cls_iri), range_cls)
-                        if self.bidirectional_taxonomy:
-                            self.__addInverseSubsumptionTriple__(URIRef(target_cls_iri), range_cls)
+                        #In case of unexpected cases 
+                        if property_iri in self.ranges_dict:
+                            
+                            for range_cls in self.ranges_dict[property_iri]:
+                                
+                                if str(target_cls_iri) == str(range_cls):
+                                    continue
+                                
+                                
+                                self.__addSubsumptionTriple__(URIRef(target_cls_iri), range_cls)
+                                if self.bidirectional_taxonomy:
+                                    self.__addInverseSubsumptionTriple__(URIRef(target_cls_iri), range_cls)
+            
+            ##end creation of targets
+            
+            
                                     
                                         
             for target_cls in targets:
@@ -1497,6 +1511,7 @@ if __name__ == '__main__':
     
     path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
     path = "/home/ernesto/Documents/Datasets/LargeBio/"
+    path = "/home/ernesto/Documents/Datasets/conference/"
     
     #uri_onto = path + "helis_v1.00.origin.owl"
     #file_projection  = path + "helis_v1.00.projection.ttl"
@@ -1508,10 +1523,24 @@ if __name__ == '__main__':
     #uri_onto = path + "go.owl"
     #file_projection  = path + "go.projection.ttl"
     
-    uri_onto = path + "snomed20090131_replab.owl"
-    uri_onto = path + "oaei2013_SNOMED_extended_overlapping_fma_nci_error.owl"
-    file_projection  = path + "snomed20090131_replab.projection.ttl"
+    #uri_onto = path + "snomed20090131_replab.owl"
+    #uri_onto = path + "oaei_SNOMED_small_overlapping_nci.owl"
+    uri_onto = path + "oaei_SNOMED_extended_overlapping_fma_nci.owl"
+    #uri_onto = path + "oaei2013_SNOMED_extended_overlapping_fma_nci_error.owl"
+    file_projection  = path + "oaei_SNOMED_extended_overlapping_fma_nci.projection.ttl"
     
+    
+    uri_onto = path + "cmt.owl"
+    file_projection  = path + "cmt.projection.ttl"
+    
+    uri_onto = path + "confof.owl"
+    file_projection  = path + "confof.projection.ttl"
+    
+    #uri_onto = path + "edas.owl"
+    #file_projection  = path + "edas.projection.ttl"
+    
+    ##uri_onto = path + "MyReview.owl"
+    ##file_projection  = path + "MyReview.projection.ttl"
     
     start_time = time.time()
     

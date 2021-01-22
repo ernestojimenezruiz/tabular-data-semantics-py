@@ -856,14 +856,18 @@ class OntologyProjection(object):
             ##TODO Propagate domain for both data properties and object properties
             if self.propagate_domain_range:
                 
-                for domain_cls in self.domains_dict[property_iri]:
+                #In case of unexpected cases
+                #RO_0002180 in Foodon may not be declared as property apparently 
+                if property_iri in self.domains_dict:
                     
-                    if str(cls.iri) == str(domain_cls):
-                        continue
-                    
-                    self.__addSubsumptionTriple__(URIRef(cls.iri), domain_cls)
-                    if self.bidirectional_taxonomy:
-                        self.__addInverseSubsumptionTriple__(URIRef(cls.iri), domain_cls)
+                    for domain_cls in self.domains_dict[property_iri]:
+                        
+                        if str(cls.iri) == str(domain_cls):
+                            continue
+                        
+                        self.__addSubsumptionTriple__(URIRef(cls.iri), domain_cls)
+                        if self.bidirectional_taxonomy:
+                            self.__addInverseSubsumptionTriple__(URIRef(cls.iri), domain_cls)
             
             
             
@@ -1510,31 +1514,34 @@ if __name__ == '__main__':
     file_projection = "/home/ernesto/ontologies/test_projection_projection.ttl"
     
     path="/home/ernesto/Documents/OWL2Vec_star/OWL2Vec-Star-master/Version_0.1/"
-    path = "/home/ernesto/Documents/Datasets/LargeBio/"
-    path = "/home/ernesto/Documents/Datasets/conference/"
+    #path = "/home/ernesto/Documents/Datasets/LargeBio/"
+    #path = "/home/ernesto/Documents/Datasets/conference/"
     
     #uri_onto = path + "helis_v1.00.origin.owl"
     #file_projection  = path + "helis_v1.00.projection.ttl"
     
     
-    uri_onto = path + "foodon-merged.owl"
-    file_projection  = path + "foodon.projection.ttl"
+    #uri_onto = path + "foodon-merged.owl"
+    #file_projection  = path + "foodon.projection.ttl"
+    
+    uri_onto = path + "foodon-merged.train.infer.owl"
+    file_projection  = path + "foodon-merged.train.infer.projection.ttl"
     
     #uri_onto = path + "go.owl"
     #file_projection  = path + "go.projection.ttl"
     
     #uri_onto = path + "snomed20090131_replab.owl"
     #uri_onto = path + "oaei_SNOMED_small_overlapping_nci.owl"
-    uri_onto = path + "oaei_SNOMED_extended_overlapping_fma_nci.owl"
+    #uri_onto = path + "oaei_SNOMED_extended_overlapping_fma_nci.owl"
     #uri_onto = path + "oaei2013_SNOMED_extended_overlapping_fma_nci_error.owl"
-    file_projection  = path + "oaei_SNOMED_extended_overlapping_fma_nci.projection.ttl"
+    #file_projection  = path + "oaei_SNOMED_extended_overlapping_fma_nci.projection.ttl"
     
     
-    uri_onto = path + "cmt.owl"
-    file_projection  = path + "cmt.projection.ttl"
+    #uri_onto = path + "cmt.owl"
+    #file_projection  = path + "cmt.projection.ttl"
     
-    uri_onto = path + "confof.owl"
-    file_projection  = path + "confof.projection.ttl"
+    #uri_onto = path + "confof.owl"
+    #file_projection  = path + "confof.projection.ttl"
     
     #uri_onto = path + "edas.owl"
     #file_projection  = path + "edas.projection.ttl"

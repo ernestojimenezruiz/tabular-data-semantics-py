@@ -2,15 +2,19 @@ import json
 import os
 from kg.endpoints import WikidataEndpoint
 
-input_gt_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab20/wikidata_tables_v5/gt/cta_gt.csv'
-gt_extension_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab20/wikidata_tables_v5/gt/cta_gt_descendent.json'
-extension_type = 'descendent' # or descendent
+input_gt_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab21/SemTab21_Evaluator/DataSets/BioDiv_CTA_WD/BioDiv_CTA_WD_gt.csv'
+gt_extension_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab21/SemTab21_Evaluator/DataSets/BioDiv_CTA_WD/BioDiv_CTA_WD_gt_ancestor.json'
+extension_type = 'ancestor' # ancestor or descendent
 
 gts = set()
 with open(input_gt_file) as f:
     for line in f.readlines():
         gt = line.strip().split(',')[2]
-        gts.add(gt)
+        if ' ' in gt:
+            for item in gt.split():
+                gts.add(item)
+        else:
+            gts.add(gt)
 
 ep = WikidataEndpoint()
 

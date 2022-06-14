@@ -18,8 +18,11 @@ class SPARQLEndpoint(object):
         '''
         Constructor
         '''
-        #"http://dbpedia.org/sparql"
-        self.sparqlw = SPARQLWrapper(endpoint_url)
+        
+        #self.sparqlw = SPARQLWrapper(endpoint_url)
+        self.sparqlw = SPARQLWrapper(endpoint_url,      
+                    agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36')
+
         
         self.sparqlw.setReturnFormat(JSON)
         
@@ -555,7 +558,8 @@ class WikidataEndpoint(SPARQLEndpoint):
         
         
     def getEndpoint(self):
-        return "https://query.wikidata.org/sparql"
+        #return "https://query.wikidata.org/sparql"
+        return "https://query.wikidata.org/bigdata/namespace/wdq/sparql"
 
 
     def createSPARQLEntitiesForClass(self, class_uri, offset=0, limit=1000):

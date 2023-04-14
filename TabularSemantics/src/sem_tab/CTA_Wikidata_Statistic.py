@@ -1,5 +1,5 @@
 import json
-gt_ancestor = json.load(open('/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab20/wikidata_tables_v5/gt/cta_gt_ancestor.json'))
+gt_ancestor = json.load(open('/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab22/SemTab22_Evaluator/DataSets/HardTablesR1/Test/gt/cta_gt_descendent.json'))
 d_keys = list()
 ancestorN = 0
 ancestorMax = 0

@@ -2,14 +2,18 @@ import json
 import os
 from kg.endpoints import WikidataEndpoint
 
-input_gt_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab21/SemTab21_Evaluator/DataSets/BioDiv_CTA_WD/BioDiv_CTA_WD_gt.csv'
-gt_extension_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab21/SemTab21_Evaluator/DataSets/BioDiv_CTA_WD/BioDiv_CTA_WD_gt_ancestor.json'
+#input_gt_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab22/SemTab22_Evaluator/DataSets/HardTablesR2/Test/gt/cta_gt.csv'
+input_gt_file = '/Users/jiahen/Downloads/temp/cta_gt_test.csv'
+#gt_extension_file = '/Users/jiahen/Data/TableAnnotate/SemTab_Challenge/SemTab22/SemTab22_Evaluator/DataSets/HardTablesR2/Test/gt/cta_gt_ancestor.json'
+gt_extension_file = '/Users/jiahen/Downloads/temp/cta_gt_test_ancestor.json'
 extension_type = 'ancestor' # ancestor or descendent
 
 gts = set()
 with open(input_gt_file) as f:
     for line in f.readlines():
         gt = line.strip().split(',')[2]
+        if gt.startswith('"') and gt.endswith('"'):
+            gt = gt[1:-1]
         if ' ' in gt:
             for item in gt.split():
                 gts.add(item)
